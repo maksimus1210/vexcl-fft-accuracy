@@ -61,26 +61,24 @@ struct N {
             x -= y;
         }
     }
-};
 
-
-static N pack(DG *d, int e, int s, int l) {
-    int i;
-    for(i = l - 1; i >= 0; --i, --e)
-        if(d[i] != 0) break;
-    if(i < 0) return N(0);
-    N a;
-    a.expt = e;
-    a.sign = s;
-    if(i >= LEN - 1) {
-        for(int j = LEN - 1; j >= 0; --i, --j) a.d[j] = d[i];
-    } else {
-        int j;
-        for(j = LEN - 1; i >= 0; --i, --j) a.d[j] = d[i];
-        for(; j >= 0; --j) a.d[j] = 0;
+    N(DG *_d, int e, int s, int l) {
+        *this = N();
+        int i;
+        for(i = l - 1; i >= 0; --i, --e)
+            if(_d[i] != 0) break;
+        if(i < 0) return;
+        expt = e;
+        sign = s;
+        if(i >= LEN - 1) {
+            for(int j = LEN - 1; j >= 0; --i, --j) d[j] = _d[i];
+        } else {
+            int j;
+            for(j = LEN - 1; i >= 0; --i, --j) d[j] = _d[i];
+            for(; j >= 0; --j) d[j] = 0;
+        }
     }
-    return a;
-}
+};
 
 
 /// compare absolute values
@@ -114,7 +112,7 @@ static N addmag0(int s, const N &a, const N &b) {
         r = HI(r);
     }
     d[ia] = LO(r);
-    return pack(d, a.expt + 1, s * a.sign, LEN + 1);
+    return N(d, a.expt + 1, s * a.sign, LEN + 1);
 }
 
 static N addmag(int s, const N &a, const N &b) {
@@ -136,7 +134,7 @@ static N submag0(int s, const N &a, const N &b) {
         d[ia] = LO(r);
         r = HI_SIGNED(r);
     }
-    return pack(d, a.expt, s * a.sign, LEN);
+    return N(d, a.expt, s * a.sign, LEN);
 }
 
 static N submag(int s, const N a, const N &b) {
@@ -179,7 +177,7 @@ static N operator*(const N &a, const N &b) {
             d[k] = LO(r);
         }
     }
-    return pack(d, a.expt + b.expt, a.sign * b.sign, 2 * LEN);
+    return N(d, a.expt + b.expt, a.sign * b.sign, 2 * LEN);
 }
 
 static N operator*=(N &a, const N &b) {
