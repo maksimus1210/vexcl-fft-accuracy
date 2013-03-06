@@ -313,7 +313,7 @@ static void cmulj(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &
     r2 = t;
 }
 
-static void cexp(int m, int n, N &r, N &i) {
+static CN exp(int m, int n) {
     static int cached_n = -1;
     static CN w[64];
     if(n != cached_n) {
@@ -330,8 +330,7 @@ static void cexp(int m, int n, N &r, N &i) {
         for(int k = 0; m; ++k, m >>= 1)
             if(m & 1) cmulj(w[k].r, w[k].i, v.r, v.i, v.r, v.i);
     }
-    r = v.r;
-    i = v.i;
+    return v;
 }
 
 static void bitrev(int n, CN *a) {
@@ -352,8 +351,7 @@ static void fft0(int n, CN *a, int sign) {
     bitrev(n, a);
     for(int i = 1; i < n; i = 2 * i) {
         for(int j = 0; j < i; ++j) {
-            CN w;
-            cexp(sign * j, 2 * i, w.r, w.i);
+            const CN w = exp(sign * j, 2 * i);
             for(int k = j; k < n; k += 2 * i) {
                 CN *a0 = a + k;
                 CN *a1 = a0 + i;
@@ -378,7 +376,7 @@ static void bluestein_sequence(int n, CN *a) {
         // careful with overflow
         ksq = ksq + 2 * k - 1;
         while(ksq > 2 * n) ksq -= 2 * n;
-        cexp(ksq, 2 * n, a[k].r, a[k].i);
+        a[k] = exp(ksq, 2 * n);
     }
 }
 
