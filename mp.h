@@ -49,16 +49,11 @@ typedef struct {
 
 static const N zero = { 1, ZEROEXP, {0} };
 
-static void cpy(const N a, N &b)
-{
-     b = a;
-}
-
 static void fromreal(REAL x, N &a)
 {
      int i, e;
 
-     cpy(zero, a);
+     a = zero;
      if (x == 0.0) return;
      
      if (x > 0) { SGNA = 1; }
@@ -81,7 +76,7 @@ static void fromreal(REAL x, N &a)
 
 static void fromshort(int x, N &a)
 {
-     cpy(zero, a);
+     a = zero;
 
      if (x < 0) { x = -x; SGNA = -1; } 
      else { SGNA = 1; }
@@ -99,7 +94,7 @@ static void pack(DG *d, int e, int s, int l, N &a)
 
      if (i < 0) {
 	  /* number is zero */
-	  cpy(zero, a);
+	  a = zero;
      } else {
 	  EXA = e;
 	  SGNA = s;
@@ -319,8 +314,8 @@ static void msin(const N &a, N &b)
      N a2, g, k;
      int i;
 
-     cpy(i31fac, g);
-     cpy(g, b);
+     g = i31fac;
+     b = g;
      mul(a, a, a2);
 
      /* Taylor */
@@ -338,8 +333,8 @@ static void mcos(const N &a, N &b)
      N a2, g, k;
      int i;
 
-     cpy(i32fac, g);
-     cpy(g, b);
+     g = i32fac;
+     b = g;
      mul(a, a, a2);
 
      /* Taylor */
@@ -396,7 +391,7 @@ static void cmul(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
      mul(r0, i1, s);
      mul(i0, r1, t);
      add(s, t, i2);
-     cpy(q, r2);
+     r2 = q;
 }
 
 /* (r0 - i i0)(r1 + i i1) */
@@ -409,7 +404,7 @@ static void cmulj(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
      mul(r0, i1, s);
      mul(i0, r1, t);
      sub(s, t, i2);
-     cpy(q, r2);
+     r2 = q;
 }
 
 static void cexp(int m, int n, N &r, N &i)
@@ -445,8 +440,12 @@ static void bitrev(int n, N *a)
      for (i = j = 0; i < n - 1; ++i) {
 	  if (i < j) {
 	       N t;
-	       cpy(a[2*i], t); cpy(a[2*j], a[2*i]); cpy(t, a[2*j]);
-	       cpy(a[2*i+1], t); cpy(a[2*j+1], a[2*i+1]); cpy(t, a[2*j+1]);
+	       t = a[2*i];
+           a[2*i] = a[2*j];
+           a[2*j] = t;
+	       t = a[2*i+1];
+           a[2*i+1] = a[2*j+1];
+           a[2*j+1] = t;
 	  }
 
 	  /* bit reversed counter */
@@ -467,8 +466,10 @@ static void fft0(int n, N *a, int sign)
 		    N *a0 = a + 2 * k;
 		    N *a1 = a0 + 2 * i;
 		    N r0, i0, r1, i1, t0, t1, xr, xi;
-		    cpy(a0[0], r0); cpy(a0[1], i0);
-		    cpy(a1[0], r1); cpy(a1[1], i1);
+		    r0 = a0[0];
+            i0 = a0[1];
+		    r1 = a1[0];
+            i1 = a1[1];
 		    mul(r1, wr, t0); mul(i1, wi, t1); sub(t0, t1, xr);
 		    mul(r1, wi, t0); mul(i1, wr, t1); add(t0, t1, xi);
 		    add(r0, xr, a0[0]);  add(i0, xi, a0[1]);
@@ -521,15 +522,15 @@ static void bluestein(int n, N *a)
 	  y = (N *)bench_malloc(2 * nb * sizeof(N));
 
 	  bluestein_sequence(n, w);
-	  for (i = 0; i < 2*nb; ++i)  cpy(zero, y[i]);
+	  for (i = 0; i < 2*nb; ++i)  y[i] = zero;
 
 	  for (i = 0; i < n; ++i) {
-	       cpy(w[2*i], y[2*i]);
-	       cpy(w[2*i+1], y[2*i+1]);
+	       y[2*i] = w[2*i];
+	       y[2*i+1] = w[2*i+1];
 	  }
 	  for (i = 1; i < n; ++i) {
-	       cpy(w[2*i], y[2*(nb-i)]);
-	       cpy(w[2*i+1], y[2*(nb-i)+1]);
+	       y[2*(nb-i)] = w[2*i];
+	       y[2*(nb-i)+1] = w[2*i+1];
 	  }
 
 	  fft0(nb, y, -1);
@@ -538,7 +539,7 @@ static void bluestein(int n, N *a)
 	  cached_bluestein_y = y;
      }
 
-     for (i = 0; i < 2*nb; ++i)  cpy(zero, b[i]);
+     for (i = 0; i < 2*nb; ++i)  b[i] = zero;
      
      for (i = 0; i < n; ++i) 
 	  cmulj(w[2*i], w[2*i+1], a[2*i], a[2*i+1], b[2*i], b[2*i+1]);
@@ -564,9 +565,9 @@ static void swapri(int n, N *a)
      int i;
      for (i = 0; i < n; ++i) {
 	  N t;
-	  cpy(a[2 * i], t);
-	  cpy(a[2 * i + 1], a[2 * i]);
-	  cpy(t, a[2 * i + 1]);
+	  t = a[2 * i];
+	  a[2 * i] = a[2 * i + 1];
+	  a[2 * i + 1] = t;
      }
 }
 
