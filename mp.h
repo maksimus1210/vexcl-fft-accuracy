@@ -304,6 +304,14 @@ struct CN {
     CN operator*(const CN &v) const {
         return CN(r * v.r - i * v.i, r * v.i + i * v.r);
     }
+
+    CN operator+(const CN &v) const {
+        return CN(r + v.r, i + v.i);
+    }
+
+    CN operator-(const CN &v) const {
+        return CN(r - v.r, i - v.i);
+    }
 };
 
 static CN conj(const CN &v) {
@@ -332,9 +340,7 @@ static CN exp(int m, int n) {
 
 static void bitrev(int n, CN *a) {
     for(int i = 0, j = 0; i < n - 1; ++i) {
-        if(i < j) {
-            std::swap(a[i], a[j]);
-        }
+        if(i < j) std::swap(a[i], a[j]);
         // bit reversed counter
         int m = n;
         do {
@@ -350,17 +356,10 @@ static void fft0(int n, CN *a, int sign) {
         for(int j = 0; j < i; ++j) {
             const CN w = exp(sign * j, 2 * i);
             for(int k = j; k < n; k += 2 * i) {
-                CN *a0 = a + k;
-                CN *a1 = a0 + i;
-                const N r0 = a0->r;
-                const N i0 = a0->i;
-                const N r1 = a1->r;
-                const N i1 = a1->i;
-                CN x = *a1 * w;
-                a0->r = r0 + x.r;
-                a0->i = i0 + x.i;
-                a1->r = r0 - x.r;
-                a1->i = i0 - x.i;
+                const CN v = a[k];
+                const CN x = a[k + i] * w;
+                a[k] = v + x;
+                a[k + i] = v - x;
             }
         }
     }
