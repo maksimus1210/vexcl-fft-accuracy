@@ -4,6 +4,8 @@
 typedef T bench_real;
 typedef T2 bench_complex;
 
+typedef bench_real REAL;
+
 int power_of_two(unsigned int n)
 {
         return (((n) > 0) && (((n) & ((n) - 1)) == 0));
@@ -12,24 +14,20 @@ int power_of_two(unsigned int n)
 #define c_re(x) (x).s[0]
 #define c_im(x) (x).s[1]
 
-#define bench_malloc malloc
-#define bench_free free
+typedef unsigned short DG;
+typedef unsigned long ACC;
+const size_t BITS_IN_REAL = 53; // mantissa
 
-#define DG unsigned short
-#define ACC unsigned long
-#define REAL bench_real
-#define BITS_IN_REAL 53 /* mantissa */
-
-#define SHFT 16
-#define RADIX 65536L
+const size_t SHFT = 16;
+const size_t RADIX = 65536L;
 #define IRADIX (1.0 / RADIX)
 #define LO(x) ((x) & (RADIX - 1))
 #define HI(x) ((x) >> SHFT)
 #define HI_SIGNED(x) \
    ((((x) + (ACC)(RADIX >> 1) * RADIX) >> SHFT) - (RADIX >> 1))
-#define ZEROEXP (-32768)
+const short ZEROEXP = -32768;
 
-#define LEN 10
+const size_t LEN = 10;
 
 struct N {
     short sign, expt;
