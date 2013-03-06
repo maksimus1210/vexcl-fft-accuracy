@@ -1,6 +1,19 @@
-#include "config.h"
-#include "bench.h"
-#include <math.h>
+#include <cmath>
+#include <cstdlib>
+
+typedef T bench_real;
+typedef T2 bench_complex;
+
+int power_of_two(unsigned int n)
+{
+         return (((n) > 0) && (((n) & ((n) - 1)) == 0));
+}
+
+#define c_re(x) (x).s[0]
+#define c_im(x) (x).s[1]
+
+#define bench_malloc malloc
+#define bench_free free
 
 #define DG unsigned short
 #define ACC unsigned long
