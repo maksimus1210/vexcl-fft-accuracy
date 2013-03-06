@@ -291,7 +291,16 @@ static N sin2pi(double m, double n) {
 
 // FFT stuff
 
-typedef std::complex<N> CN;
+struct CN : std::complex<N> {
+    // from floating point
+    template<class T>
+    CN(const std::complex<T> &v) : std::complex<N>(N(std::real(v)), N(std::imag(v))) {}
+
+    // polar form exp(i 2 pi m / n)
+    CN(int m, int n) : std::complex<N>(cos2pi(m,n), sin2pi(m,n)) {}
+
+    CN(const N &r = N(), const N &i = N()) : std::complex<N>(r, i) {}
+};
 
 int power_of_two(unsigned int n) {
     return (((n) > 0) && (((n) & ((n) - 1)) == 0));
@@ -309,7 +318,7 @@ static std::complex<N> exp(int m, int n) {
     static std::complex<N> w[64];
     if(n != cached_n) {
         for(int j = 1, k = 0; j < n; j += j, ++k)
-            w[k] = CN(cos2pi(j, n), sin2pi(j, n));
+            w[k] = CN(j, n);
         cached_n = n;
     }
     CN v(N(1));
@@ -325,11 +334,8 @@ static std::complex<N> exp(int m, int n) {
 }
 
 struct simple_fft {
-
     std::vector<CN> w, y;
-
     simple_fft() {}
-
 
     void bitrev(int n, CN *a) {
         for(int i = 0, j = 0; i < n - 1; ++i) {
@@ -406,12 +412,6 @@ struct simple_fft {
         }
     }
 
-    template<class T>
-    void fromrealv(int n, const std::complex<T> *a, CN *b) {
-        for(int i = 0; i < n; ++i)
-            b[i] = CN(N(std::real(a[i])), N(std::imag(a[i])));
-    }
-
     double compare(int n, const N *a, const N *b, double norm) {
         const double inf = norm == std::numeric_limits<double>::infinity();
         double e = 0, m = 0;
@@ -430,7 +430,10 @@ struct simple_fft {
     template<class T>
     double accuracy(int n, const std::complex<T> *a, const std::complex<T> *ffta, int sign, bool forward = true, double norm = 2) {
         std::vector<CN> b(n), fftb(n);
-        fromrealv(n, a, b.data()); fromrealv(n, ffta, fftb.data());
+        for(int i = 0 ; i < n ; i++) {
+            b[i] = CN(a[i]);
+            fftb[i] = CN(ffta[i]);
+        }
         if(forward) {
             // forward error
             fft1(n, b.data(), sign);
