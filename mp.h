@@ -149,8 +149,18 @@ static N operator+(const N &a, const N &b) {
     return (a.sign == b.sign) ? addmag(1, a, b) : submag(1, a, b);
 }
 
+static N operator+=(N &a, const N &b) {
+    a = a + b;
+    return a;
+}
+
 static N operator-(const N &a, const N &b) {
     return (a.sign == b.sign) ? submag(-1, a, b) : addmag(-1, a, b);
+}
+
+static N operator-=(N &a, const N &b) {
+    a = a - b;
+    return a;
 }
 
 static N operator*(const N &a, const N &b) {
@@ -297,26 +307,7 @@ static N sin2pi(REAL m, REAL n) {
 
 // FFT stuff
 
-struct CN {
-    N r, i;
-    CN(N r = N(), N i = N()) : r(r), i(i) {}
-
-    CN operator*(const CN &v) const {
-        return CN(r * v.r - i * v.i, r * v.i + i * v.r);
-    }
-
-    CN operator+(const CN &v) const {
-        return CN(r + v.r, i + v.i);
-    }
-
-    CN operator-(const CN &v) const {
-        return CN(r - v.r, i - v.i);
-    }
-};
-
-static CN conj(const CN &v) {
-    return CN(v.r, -v.i);
-}
+typedef std::complex<N> CN;
 
 static CN exp(int m, int n) {
     static int cached_n = -1;
@@ -418,15 +409,14 @@ static void bluestein(int n, CN *a) {
 
     for(int i = 0; i < n; ++i) {
         a[i] = conj(w[i]) * b[i];
-        a[i].r *= nbinv;
-        a[i].i *= nbinv;
+        a[i] *= nbinv;
     }
     delete [] b;
 }
 
 static void swapri(int n, CN *a) {
     for(int i = 0; i < n; ++i)
-        std::swap(a[i].r, a[i].i);
+        a[i] = CN(imag(a[i]), real(a[i]));
 }
 
 static void fft1(int n, CN *a, int sign) {
@@ -440,10 +430,8 @@ static void fft1(int n, CN *a, int sign) {
 }
 
 static void fromrealv(int n, const bench_complex *a, CN *b) {
-    for (int i = 0; i < n; ++i) {
-        b[i].r = N(c_re(a[i]));
-        b[i].i = N(c_im(a[i]));
-    }
+    for (int i = 0; i < n; ++i)
+        b[i] = CN(N(c_re(a[i])), N(c_im(a[i])));
 }
 
 static void compare(int n, const N *a, const N *b, double err[3]) {
@@ -485,7 +473,7 @@ void fftaccuracy(int n, const bench_complex *a, const bench_complex *ffta, int s
 
     // backward error
     fromrealv(n, a, b); fromrealv(n, ffta, fftb);
-    for (i = 0; i < n; ++i) {fftb[i].r *= ninv; fftb[i].i *= ninv;}
+    for (i = 0; i < n; ++i) fftb[i] *= ninv;
     fft1(n, fftb, -sign);
     compare(n, (N*)b, (N*)fftb, err + 3);
 
