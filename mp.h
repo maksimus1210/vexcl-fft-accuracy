@@ -93,8 +93,9 @@ N(REAL x)
 
 
 
-static void pack(DG *d, int e, int s, int l, N &a)
+static N pack(DG *d, int e, int s, int l)
 {
+    N a;
      int i, j;
 
      for (i = l - 1; i >= 0; --i, --e) 
@@ -118,6 +119,7 @@ static void pack(DG *d, int e, int s, int l, N &a)
 		    AD[j] = 0;
 	  }
      }
+     return a;
 }
 
 
@@ -136,7 +138,7 @@ static int abscmp(const N &a, const N &b)
      return 0;
 }
 
-static int eq(const N &a, const N &b)
+static bool operator==(const N &a, const N &b)
 {
      return (SGNA == SGNB) && (abscmp(a, b) == 0);
 }
@@ -159,7 +161,7 @@ static void addmag0(int s, const N &a, const N &b, N &c)
 	  r = HI(r);
      }
      d[ia] = LO(r);
-     pack(d, EXA + 1, s * SGNA, LEN + 1, c);
+     c = pack(d, EXA + 1, s * SGNA, LEN + 1);
 }
 
 static void addmag(int s, const N &a, const N &b, N &c)
@@ -185,7 +187,7 @@ static void submag0(int s, const N &a, const N &b, N &c)
 	  r = HI_SIGNED(r);
      }
 
-     pack(d, EXA, s * SGNA, LEN, c);
+     c = pack(d, EXA, s * SGNA, LEN);
 }
 
 static void submag(int s, const N a, const N &b, N &c)
@@ -194,18 +196,23 @@ static void submag(int s, const N a, const N &b, N &c)
 }
 
 /* c = a + b */
-static void add(const N &a, const N &b, N &c)
+static N operator+(const N &a, const N &b)
 {
+    N c;
      if (SGNA == SGNB) addmag(1, a, b, c); else submag(1, a, b, c);
+     return c;
 }
 
-static void sub(const N &a, const N &b, N &c)
+static N operator-(const N &a, const N &b)
 {
+    N c;
      if (SGNA == SGNB) submag(-1, a, b, c); else addmag(-1, a, b, c);
+     return c;
 }
 
-static void mul(const N &a, const N &b, N &c)
+static N operator*(const N &a, const N &b)
 {
+    N c;
      DG d[2 * LEN];
      int i, j, k;
      ACC r;
@@ -226,7 +233,8 @@ static void mul(const N &a, const N &b, N &c)
 	  }
      }
 
-     pack(d, EXA + EXB, SGNA * SGNB, 2 * LEN, c);
+     c = pack(d, EXA + EXB, SGNA * SGNB, 2 * LEN);
+     return c;
 }
 
 static REAL toreal(const N &a)
@@ -291,10 +299,10 @@ static void inv(const N &a, N &x)
 
      for (;;) {
 	  /* Newton */
-	  mul(a, x, w);
-	  sub(two, w, z);
-	  if (eq(one, z)) break;
-	  mul(x, z, x);
+	  w = a * x;
+	  z = two - w;
+	  if (one == z) break;
+	  x = x * z;
      }
 }
 
@@ -325,16 +333,16 @@ static void msin(const N &a, N &b)
 
      g = i31fac;
      b = g;
-     mul(a, a, a2);
+     a2 = a * a;
 
      /* Taylor */
      for (i = 31; i > 1; i -= 2) {
 	  k = N(i * (i - 1));
-	  mul(k, g, g);
-	  mul(a2, b, k);
-	  sub(g, k, b);
+	  g = k * g;
+	  k = a2 * b;
+	  b = g - k;
      }
-     mul(a, b, b);
+     b = a * b;
 }
 
 static void mcos(const N &a, N &b)
@@ -344,14 +352,14 @@ static void mcos(const N &a, N &b)
 
      g = i32fac;
      b = g;
-     mul(a, a, a2);
+     a2 = a * a;
 
      /* Taylor */
      for (i = 32; i > 0; i -= 2) {
 	  k = N(i * (i - 1));
-	  mul(k, g, g);
-	  mul(a2, b, k);
-	  sub(g, k, b);
+	  g = k * g;
+	  k = a2 * b;
+	  b = g - k;
      }
 }
 
@@ -362,8 +370,8 @@ static void by2pi(REAL m, REAL n, N &a)
      b = N(n);
      inv(b, a);
      b = N(m);
-     mul(a, b, a);
-     mul(n2pi, a, a);
+     a = a * b;
+     a = n2pi * a;
 }
 
 static void sin2pi(REAL m, REAL n, N &a);
@@ -394,12 +402,12 @@ static void sin2pi(REAL m, REAL n, N &a)
 static void cmul(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
 {
      N s, t, q;
-     mul(r0, r1, s);
-     mul(i0, i1, t);
-     sub(s, t, q);
-     mul(r0, i1, s);
-     mul(i0, r1, t);
-     add(s, t, i2);
+     s = r0 * r1;
+     t = i0 * i1;
+     q = s - t;
+     s = r0 * i1;
+     t = i0 * r1;
+     i2 = s + t;
      r2 = q;
 }
 
@@ -407,12 +415,12 @@ static void cmul(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
 static void cmulj(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
 {
      N s, t, q;
-     mul(r0, r1, s);
-     mul(i0, i1, t);
-     add(s, t, q);
-     mul(r0, i1, s);
-     mul(i0, r1, t);
-     sub(s, t, i2);
+     s = r0 * r1;
+     t = i0 * i1;
+     q = s + t;
+     s = r0 * i1;
+     t = i0 * r1;
+     i2 = s - t;
      r2 = q;
 }
 
@@ -479,10 +487,16 @@ static void fft0(int n, N *a, int sign)
             i0 = a0[1];
 		    r1 = a1[0];
             i1 = a1[1];
-		    mul(r1, wr, t0); mul(i1, wi, t1); sub(t0, t1, xr);
-		    mul(r1, wi, t0); mul(i1, wr, t1); add(t0, t1, xi);
-		    add(r0, xr, a0[0]);  add(i0, xi, a0[1]);
-		    sub(r0, xr, a1[0]);  sub(i0, xi, a1[1]);
+		    t0 = r1 * wr;
+            t1 = i1 * wi;
+            xr = t0 - t1;
+		    t0 = r1 * wi;
+            t1 = i1 * wr;
+            xi = t0 + t1;
+		    a0[0] = r0 + xr; 
+            a0[1] = i0 + xi;
+		    a1[0] = r0 - xr;
+            a1[1] = i0 - xi;
 	       }
 	  }
      }
@@ -562,8 +576,8 @@ static void bluestein(int n, N *a)
 
      for (i = 0; i < n; ++i) {
 	  cmulj(w[2*i], w[2*i+1], b[2*i], b[2*i+1], a[2*i], a[2*i+1]);
-	  mul(nbinv, a[2*i], a[2*i]);
-	  mul(nbinv, a[2*i+1], a[2*i+1]);
+	  a[2*i] = nbinv * a[2*i];
+	  a[2*i+1] = nbinv * a[2*i+1];
      }
 
      bench_free(b);
@@ -618,7 +632,7 @@ static void compare(int n, N *a, N *b, double *err)
 	  
      for (i = 0; i < 2 * n; ++i) {
 	  N dd;
-	  sub(a[i], b[i], dd);
+	  dd = a[i] - b[i];
 	  DO(n1, n2, ninf, toreal(a[i]));
 	  DO(e1, e2, einf, toreal(dd));
      }
@@ -647,7 +661,7 @@ void fftaccuracy(int n, bench_complex *a, bench_complex *ffta,
 
      /* backward error */
      fromrealv(n, a, b); fromrealv(n, ffta, fftb);
-     for (i = 0; i < 2 * n; ++i) mul(fftb[i], ninv, fftb[i]);
+     for (i = 0; i < 2 * n; ++i) fftb[i] = fftb[i] * ninv;
      fft1(n, fftb, -sign);
      compare(n, b, fftb, err + 3);
 
