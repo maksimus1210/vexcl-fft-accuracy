@@ -1,10 +1,8 @@
 #include <cmath>
-#include <cstdlib>
-
-typedef T bench_real;
-typedef T2 bench_complex;
-
-typedef bench_real REAL;
+#include <array>
+#include <complex>
+#include <limits>
+#include <vector>
 
 int power_of_two(unsigned int n)
 {
@@ -47,7 +45,8 @@ struct N {
         }
     }
 
-    N(REAL x) {
+    template<class T>
+    N(T x) {
         *this = N();
         if(x == 0.0) return;
         if(x < 0) { sign = -1; x = -x; }
@@ -56,7 +55,7 @@ struct N {
         while(x < IRADIX) { x *= RADIX; expt--; }
         for(int i = LEN - 1; i >= 0 && x != 0.0; --i) {
             x *= RADIX;
-            REAL y = floor(x);
+            T y = floor(x);
             d[i] = (DG)y;
             x -= y;
         }
@@ -185,8 +184,9 @@ static N operator*=(N &a, const N &b) {
     return a;
 }
 
-static REAL toreal(const N &a) {
-    REAL h, l, f;
+template<typename T>
+static T to(const N &a) {
+    T h, l, f;
     int i, bits;
     ACC r;
     DG sticky;
@@ -222,7 +222,7 @@ static REAL toreal(const N &a) {
 
         h += l;
 
-        for(i = 0; i < a.expt; ++i) h *= (REAL)RADIX;
+        for(i = 0; i < a.expt; ++i) h *= (T)RADIX;
         for(i = 0; i > a.expt; --i) h *= IRADIX;
         if(a.sign == -1) h = -h;
         return h;
@@ -238,8 +238,8 @@ static N operator-(const N &a) {
 }
 
 static N inv(const N &a) {
-    const N one(1), two(2);
-    N x(1.0 / toreal(a)); // initial guess
+    static const N one(1), two(2);
+    N x(1.0 / to<double>(a)); // initial guess
     for(;;) { // Newton
         N z = two - a * x;
         if(one == z) break;
@@ -249,17 +249,9 @@ static N inv(const N &a) {
 }
 
 
-// 2 pi
-static const N n2pi(1,  1, {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6});
-
-// 1 / 31!
-static const N i31fac(1, -7, {28087, 45433, 51357, 24545, 14291, 3954, 57879, 8109, 38716, 41382});
-
-// 1 / 32!
-static const N i32fac(1, -7, {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293});
-
-
 static N sin(const N &a) {
+    // 1 / 31!
+    static const N i31fac(1, -7, {28087, 45433, 51357, 24545, 14291, 3954, 57879, 8109, 38716, 41382});
     N g = i31fac, b = g;
     const N a2 = a * a;
     for(int i = 31; i > 1; i -= 2) { // Taylor
@@ -270,6 +262,8 @@ static N sin(const N &a) {
 }
 
 static N cos(const N &a) {
+    // 1 / 32!
+    static const N i32fac(1, -7, {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293});
     N g = i32fac, b = g;
     const N a2 = a * a;
     for(int i = 32; i > 0; i -= 2) { // Taylor
@@ -280,12 +274,14 @@ static N cos(const N &a) {
 }
 
 /// 2 pi m / n
-static N by2pi(REAL m, REAL n) {
+static N by2pi(double m, double n) {
+    static const N n2pi(1,  1, {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6});
     return N(m) * inv(N(n)) * n2pi;
 }
 
-static N sin2pi(REAL m, REAL n);
-static N cos2pi(REAL m, REAL n) {
+static N sin2pi(double m, double n);
+
+static N cos2pi(double m, double n) {
     if(m < 0) return cos2pi(-m, n);
     else if(m > n * 0.5) return cos2pi(n - m, n);
     else if(m > n * 0.25) return -sin2pi(m - n * 0.25, n);
@@ -293,7 +289,7 @@ static N cos2pi(REAL m, REAL n) {
     else return cos(by2pi(m, n));
 }
 
-static N sin2pi(REAL m, REAL n) {
+static N sin2pi(double m, double n) {
     if(m < 0) return -sin2pi(-m, n);
     else if(m > n * 0.5) return -sin2pi(n - m, n);
     else if(m > n * 0.25) return cos2pi(m - n * 0.25, n);
@@ -404,7 +400,7 @@ static void bluestein(int n, CN *a) {
 }
 
 static void swapri(int n, CN *a) {
-    for(int i = 0; i < n; ++i) a[i] = CN(imag(a[i]), real(a[i]));
+    for(int i = 0; i < n; ++i) a[i] = CN(std::imag(a[i]), std::real(a[i]));
 }
 
 static void fft1(int n, CN *a, int sign) {
@@ -417,47 +413,44 @@ static void fft1(int n, CN *a, int sign) {
     }
 }
 
-static void fromrealv(int n, const bench_complex *a, CN *b) {
+template<class T>
+static void fromrealv(int n, const std::complex<T> *a, CN *b) {
     for(int i = 0; i < n; ++i)
-        b[i] = CN(N(c_re(a[i])), N(c_im(a[i])));
+        b[i] = CN(N(std::real(a[i])), N(std::imag(a[i])));
 }
 
-static void compare(int n, const N *a, const N *b, double err[3]) {
-    double e1 = 0, e2 = 0, einf = 0;
-    double n1 = 0, n2 = 0, ninf = 0;
+static double compare(int n, const N *a, const N *b, double norm) {
+    const double inf = norm == std::numeric_limits<double>::infinity();
+    double e = 0, m = 0;
     for(int i = 0; i < 2 * n; ++i) {
-        double nd = std::abs(toreal(a[i]));
-        n1 += nd;
-        n2 += nd * nd;
-        if(nd > ninf) ninf = nd;
-        double ed = std::abs(toreal(a[i] - b[i]));
-        e1 += ed;
-        e2 += ed * ed;
-        if(ed > einf) einf = ed;
+        double nd = std::abs(to<double>(a[i]));
+        if(inf) m = std::max(m, nd);
+        else m += std::pow(nd, norm);
+        double ed = std::abs(to<double>(a[i] - b[i]));
+        if(inf) e = std::max(e, ed);
+        else e += std::pow(ed, norm);
     }
-    err[0] = e1 / n1;
-    err[1] = sqrt(e2 / n2);
-    err[2] = einf / ninf;
+    if(inf) return e / m;
+    else return std::pow(e / m, 1 / norm);
 }
 
-void fftaccuracy(int n, const bench_complex *a, const bench_complex *ffta, int sign, double err[6]) {
-    CN *b = new CN[n];
-    CN *fftb = new CN[n];
+template<class T>
+double fftaccuracy(int n, const std::complex<T> *a, const std::complex<T> *ffta, int sign, bool forward = true, double norm = 2) {
+    std::vector<CN> b(n), fftb(n);
 
-    // forward error
-    fromrealv(n, a, b); fromrealv(n, ffta, fftb);
-    fft1(n, b, sign);
-    compare(n, (N*)b, (N*)fftb, err);
-
-    // backward error
-    fromrealv(n, a, b); fromrealv(n, ffta, fftb);
-    const N ninv = inv(N(n));
-    for(int i = 0; i < n; ++i) fftb[i] *= ninv;
-    fft1(n, fftb, -sign);
-    compare(n, (N*)b, (N*)fftb, err + 3);
-
-    delete [] fftb;
-    delete [] b;
+    if(forward) {
+        // forward error
+        fromrealv(n, a, b.data()); fromrealv(n, ffta, fftb.data());
+        fft1(n, b.data(), sign);
+        return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
+    } else {
+        // backward error
+        fromrealv(n, a, b.data()); fromrealv(n, ffta, fftb.data());
+        const N ninv = inv(N(n));
+        for(int i = 0; i < n; ++i) fftb[i] *= ninv;
+        fft1(n, fftb.data(), -sign);
+        return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
+    }
 }
 
 void fftaccuracy_done() {
