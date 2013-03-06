@@ -144,8 +144,9 @@ static bool operator==(const N &a, const N &b)
 }
 
 /* add magnitudes, for |a| >= |b| */
-static void addmag0(int s, const N &a, const N &b, N &c)
+static N addmag0(int s, const N &a, const N &b)
 {
+    N c;
      int ia, ib;
      ACC r = 0;
      DG d[LEN + 1];
@@ -162,16 +163,18 @@ static void addmag0(int s, const N &a, const N &b, N &c)
      }
      d[ia] = LO(r);
      c = pack(d, EXA + 1, s * SGNA, LEN + 1);
+     return c;
 }
 
-static void addmag(int s, const N &a, const N &b, N &c)
+static N addmag(int s, const N &a, const N &b)
 {
-     if (abscmp(a, b) > 0) addmag0(1, a, b, c); else addmag0(s, b, a, c);
+     return (abscmp(a, b) > 0) ? addmag0(1, a, b) : addmag0(s, b, a);
 }
 
 /* subtract magnitudes, for |a| >= |b| */
-static void submag0(int s, const N &a, const N &b, N &c)
+static N submag0(int s, const N &a, const N &b)
 {
+    N c;
      int ia, ib;
      ACC r = 0;
      DG d[LEN];
@@ -188,26 +191,23 @@ static void submag0(int s, const N &a, const N &b, N &c)
      }
 
      c = pack(d, EXA, s * SGNA, LEN);
+     return c;
 }
 
-static void submag(int s, const N a, const N &b, N &c)
+static N submag(int s, const N a, const N &b)
 {
-     if (abscmp(a, b) > 0) submag0(1, a, b, c); else submag0(s, b, a, c);
+    return (abscmp(a, b) > 0) ? submag0(1, a, b) : submag0(s, b, a);
 }
 
 /* c = a + b */
 static N operator+(const N &a, const N &b)
 {
-    N c;
-     if (SGNA == SGNB) addmag(1, a, b, c); else submag(1, a, b, c);
-     return c;
+    return (SGNA == SGNB) ? addmag(1, a, b) : submag(1, a, b);
 }
 
 static N operator-(const N &a, const N &b)
 {
-    N c;
-     if (SGNA == SGNB) submag(-1, a, b, c); else addmag(-1, a, b, c);
-     return c;
+    return (SGNA == SGNB) ? submag(-1, a, b) : addmag(-1, a, b);
 }
 
 static N operator*(const N &a, const N &b)
@@ -284,13 +284,16 @@ static REAL toreal(const N &a)
      }
 }
 
-static void neg(N &a)
+static N operator-(const N &a)
 {
-     SGNA = -SGNA;
+    N b = a;
+    b.sign = -b.sign;
+    return b;
 }
 
-static void inv(const N &a, N &x)
+static N inv(const N &a)
 {
+    N x;
      N w, z, one, two;
 
      x = N(1.0 / toreal(a)); /* initial guess */
@@ -304,6 +307,7 @@ static void inv(const N &a, N &x)
 	  if (one == z) break;
 	  x = x * z;
      }
+     return x;
 }
 
 
@@ -326,8 +330,9 @@ static const N i32fac (
      {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293}
      );
 
-static void msin(const N &a, N &b)
+static N msin(const N &a)
 {
+    N b;
      N a2, g, k;
      int i;
 
@@ -343,10 +348,12 @@ static void msin(const N &a, N &b)
 	  b = g - k;
      }
      b = a * b;
+     return b;
 }
 
-static void mcos(const N &a, N &b)
+static N mcos(const N &a)
 {
+    N b;
      N a2, g, k;
      int i;
 
@@ -361,38 +368,42 @@ static void mcos(const N &a, N &b)
 	  k = a2 * b;
 	  b = g - k;
      }
+     return b;
 }
 
-static void by2pi(REAL m, REAL n, N &a)
+static N by2pi(REAL m, REAL n)
 {
-     N b;
+     N a, b;
 
      b = N(n);
-     inv(b, a);
+     a = inv(b);
      b = N(m);
      a = a * b;
      a = n2pi * a;
+     return a;
 }
 
-static void sin2pi(REAL m, REAL n, N &a);
-static void cos2pi(REAL m, REAL n, N &a)
+static N sin2pi(REAL m, REAL n);
+static N cos2pi(REAL m, REAL n)
 {
-     N b;
-     if (m < 0) cos2pi(-m, n, a);
-     else if (m > n * 0.5) cos2pi(n - m, n, a);
-     else if (m > n * 0.25) {sin2pi(m - n * 0.25, n, a); neg(a);}
-     else if (m > n * 0.125) sin2pi(n * 0.25 - m, n, a);
-     else { by2pi(m, n, b); mcos(b, a); }
+     N a,b;
+     if (m < 0) a = cos2pi(-m, n);
+     else if (m > n * 0.5) a = cos2pi(n - m, n);
+     else if (m > n * 0.25) a = -sin2pi(m - n * 0.25, n);
+     else if (m > n * 0.125) a = sin2pi(n * 0.25 - m, n);
+     else { b = by2pi(m, n); a = mcos(b); }
+     return a;
 }
 
-static void sin2pi(REAL m, REAL n, N &a)
+static N sin2pi(REAL m, REAL n)
 {
-     N b;
-     if (m < 0)  {sin2pi(-m, n, a); neg(a);}
-     else if (m > n * 0.5) {sin2pi(n - m, n, a); neg(a);}
-     else if (m > n * 0.25) {cos2pi(m - n * 0.25, n, a);}
-     else if (m > n * 0.125) {cos2pi(n * 0.25 - m, n, a);}
-     else {by2pi(m, n, b); msin(b, a);}
+     N a,b;
+     if (m < 0)  a = -sin2pi(-m, n);
+     else if (m > n * 0.5) a = -sin2pi(n - m, n);
+     else if (m > n * 0.25) a = cos2pi(m - n * 0.25, n);
+     else if (m > n * 0.125) a = cos2pi(n * 0.25 - m, n);
+     else {b = by2pi(m, n); a = msin(b);}
+     return a;
 }
 
 /*----------------------------------------------------------------------*/
@@ -431,8 +442,8 @@ static void cexp(int m, int n, N &r, N &i)
      int k, j;
      if (n != cached_n) {
 	  for (j = 1, k = 0; j < n; j += j, ++k) {
-	       cos2pi(j, n, w[k][0]);
-	       sin2pi(j, n, w[k][1]);
+	       w[k][0] = cos2pi(j, n);
+	       w[k][1] = sin2pi(j, n);
 	  }
 	  cached_n = n;
      }
@@ -652,7 +663,7 @@ void fftaccuracy(int n, bench_complex *a, bench_complex *ffta,
      int i;
 
      mn = N(n);
-     inv(mn, ninv);
+     ninv = inv(mn);
 
      /* forward error */
      fromrealv(n, a, b); fromrealv(n, ffta, fftb);
