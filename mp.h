@@ -31,11 +31,53 @@ int power_of_two(unsigned int n)
 
 #define LEN 10
 
-typedef struct {
+struct N {
      short sign;
      short expt;
-     DG d[LEN]; 
-} N;
+     std::array<DG, LEN> d;
+     N(short s, short e, std::array<DG,LEN> dd) : sign(s), expt(e), d(dd) {}
+
+     N(int x = 0) {
+         for(size_t i = 0 ; i < LEN ; i++)
+             d[i] = 0;
+         if(x == 0) {
+             sign = 1;
+             expt = ZEROEXP;
+         } else {
+         if(x < 0) {
+             x = -x;
+             sign = -1;
+         } else sign = 1;
+         expt = 1;
+         d[LEN - 1] = x;
+     }}
+
+N(REAL x)
+{
+    *this = N();
+     int i, e;
+
+     if (x == 0.0) return;
+     
+     if (x > 0) { sign = 1; }
+     else       { sign = -1; x = -x; }
+
+     e = 0;
+     while (x >= 1.0) { x *= IRADIX; ++e; }
+     while (x < IRADIX) { x *= RADIX; --e; }
+     expt = e;
+     
+     for (i = LEN - 1; i >= 0 && x != 0.0; --i) {
+	  REAL y;
+
+	  x *= RADIX;
+	  y = floor(x);
+	  d[i] = (DG)y;
+	  x -= y;
+     }
+}
+
+};
 
 #define EXA a.expt
 #define EXB b.expt
@@ -47,43 +89,9 @@ typedef struct {
 #define SGNA a.sign
 #define SGNB b.sign
 
-static const N zero = { 1, ZEROEXP, {0} };
 
-static N fromreal(REAL x)
-{
-    N a = zero;
-     int i, e;
 
-     if (x == 0.0) return a;
-     
-     if (x > 0) { SGNA = 1; }
-     else       { SGNA = -1; x = -x; }
 
-     e = 0;
-     while (x >= 1.0) { x *= IRADIX; ++e; }
-     while (x < IRADIX) { x *= RADIX; --e; }
-     EXA = e;
-     
-     for (i = LEN - 1; i >= 0 && x != 0.0; --i) {
-	  REAL y;
-
-	  x *= RADIX;
-	  y = floor(x);
-	  AD[i] = (DG)y;
-	  x -= y;
-     }
-     return a;
-}
-
-static void fromshort(int x, N &a)
-{
-     a = zero;
-
-     if (x < 0) { x = -x; SGNA = -1; } 
-     else { SGNA = 1; }
-     EXA = 1;
-     AD[LEN - 1] = x;
-}
 
 static void pack(DG *d, int e, int s, int l, N &a)
 {
@@ -95,7 +103,7 @@ static void pack(DG *d, int e, int s, int l, N &a)
 
      if (i < 0) {
 	  /* number is zero */
-	  a = zero;
+	  a = N(0);
      } else {
 	  EXA = e;
 	  SGNA = s;
@@ -277,9 +285,9 @@ static void inv(const N &a, N &x)
 {
      N w, z, one, two;
 
-     x = fromreal(1.0 / toreal(a)); /* initial guess */
-     fromshort(1, one);
-     fromshort(2, two);
+     x = N(1.0 / toreal(a)); /* initial guess */
+     one = N(1);
+     two = N(2);
 
      for (;;) {
 	  /* Newton */
@@ -292,23 +300,23 @@ static void inv(const N &a, N &x)
 
 
 /* 2 pi */
-static const N n2pi = {
-     1, 1,
-     {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6}
-};
+static const N n2pi (
+     1,  1,
+      {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6}
+);
 
 /* 1 / 31! */
-static const N i31fac = {
+static const N i31fac (
      1, -7, 
      {28087, 45433, 51357, 24545, 14291, 3954, 57879, 8109, 38716, 41382}
-};
+     );
 
 
 /* 1 / 32! */
-static const N i32fac = {
+static const N i32fac (
      1, -7,
      {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293}
-};
+     );
 
 static void msin(const N &a, N &b)
 {
@@ -321,7 +329,7 @@ static void msin(const N &a, N &b)
 
      /* Taylor */
      for (i = 31; i > 1; i -= 2) {
-	  fromshort(i * (i - 1), k);
+	  k = N(i * (i - 1));
 	  mul(k, g, g);
 	  mul(a2, b, k);
 	  sub(g, k, b);
@@ -340,7 +348,7 @@ static void mcos(const N &a, N &b)
 
      /* Taylor */
      for (i = 32; i > 0; i -= 2) {
-	  fromshort(i * (i - 1), k);
+	  k = N(i * (i - 1));
 	  mul(k, g, g);
 	  mul(a2, b, k);
 	  sub(g, k, b);
@@ -351,9 +359,9 @@ static void by2pi(REAL m, REAL n, N &a)
 {
      N b;
 
-     b = fromreal(n);
+     b = N(n);
      inv(b, a);
-     b = fromreal(m);
+     b = N(m);
      mul(a, b, a);
      mul(n2pi, a, a);
 }
@@ -421,8 +429,8 @@ static void cexp(int m, int n, N &r, N &i)
 	  cached_n = n;
      }
 
-     fromshort(1, r);
-     fromshort(0, i);
+     r = N(1);
+     i = N(0);
      if (m > 0) {
 	  for (k = 0; m; ++k, m >>= 1) 
 	       if (m & 1)
@@ -514,7 +522,7 @@ static void bluestein(int n, N *a)
      N nbinv;
      int i;
 
-     nbinv = fromreal(1.0 / nb); /* exact because nb = 2^k */
+     nbinv = N(1.0 / nb); /* exact because nb = 2^k */
 
      if (cached_bluestein_n != n) {
 	  if (w) bench_free(w);
@@ -523,7 +531,7 @@ static void bluestein(int n, N *a)
 	  y = (N *)bench_malloc(2 * nb * sizeof(N));
 
 	  bluestein_sequence(n, w);
-	  for (i = 0; i < 2*nb; ++i)  y[i] = zero;
+	  for (i = 0; i < 2*nb; ++i)  y[i] = N(0);
 
 	  for (i = 0; i < n; ++i) {
 	       y[2*i] = w[2*i];
@@ -540,7 +548,7 @@ static void bluestein(int n, N *a)
 	  cached_bluestein_y = y;
      }
 
-     for (i = 0; i < 2*nb; ++i)  b[i] = zero;
+     for (i = 0; i < 2*nb; ++i)  b[i] = N(0);
      
      for (i = 0; i < n; ++i) 
 	  cmulj(w[2*i], w[2*i+1], a[2*i], a[2*i+1], b[2*i], b[2*i+1]);
@@ -588,8 +596,8 @@ static void fromrealv(int n, bench_complex *a, N *b)
      int i;
 
      for (i = 0; i < n; ++i) {
-	  b[2 * i] = fromreal(c_re(a[i]));
-	  b[2 * i + 1] = fromreal(c_im(a[i]));
+	  b[2 * i] = N(c_re(a[i]));
+	  b[2 * i + 1] = N(c_im(a[i]));
      }
 }
 
@@ -629,7 +637,7 @@ void fftaccuracy(int n, bench_complex *a, bench_complex *ffta,
      N mn, ninv;
      int i;
 
-     mn = fromreal(n);
+     mn = N(n);
      inv(mn, ninv);
 
      /* forward error */
