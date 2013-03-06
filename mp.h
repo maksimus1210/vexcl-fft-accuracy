@@ -35,26 +35,26 @@ typedef struct {
      short sign;
      short expt;
      DG d[LEN]; 
-} N[1];
+} N;
 
-#define EXA a->expt
-#define EXB b->expt
-#define EXC c->expt
+#define EXA a.expt
+#define EXB b.expt
+#define EXC c.expt
 
-#define AD a->d
-#define BD b->d
+#define AD a.d
+#define BD b.d
 
-#define SGNA a->sign
-#define SGNB b->sign
+#define SGNA a.sign
+#define SGNB b.sign
 
-static const N zero = {{ 1, ZEROEXP, {0} }};
+static const N zero = { 1, ZEROEXP, {0} };
 
-static void cpy(const N a, N b)
+static void cpy(const N a, N &b)
 {
-     *b = *a;
+     b = a;
 }
 
-static void fromreal(REAL x, N a)
+static void fromreal(REAL x, N &a)
 {
      int i, e;
 
@@ -79,7 +79,7 @@ static void fromreal(REAL x, N a)
      }
 }
 
-static void fromshort(int x, N a)
+static void fromshort(int x, N &a)
 {
      cpy(zero, a);
 
@@ -89,7 +89,7 @@ static void fromshort(int x, N a)
      AD[LEN - 1] = x;
 }
 
-static void pack(DG *d, int e, int s, int l, N a)
+static void pack(DG *d, int e, int s, int l, N &a)
 {
      int i, j;
 
@@ -118,7 +118,7 @@ static void pack(DG *d, int e, int s, int l, N a)
 
 
 /* compare absolute values */
-static int abscmp(const N a, const N b)
+static int abscmp(const N &a, const N &b)
 {
      int i;
      if (EXA > EXB) return 1;
@@ -132,13 +132,13 @@ static int abscmp(const N a, const N b)
      return 0;
 }
 
-static int eq(const N a, const N b)
+static int eq(const N &a, const N &b)
 {
      return (SGNA == SGNB) && (abscmp(a, b) == 0);
 }
 
 /* add magnitudes, for |a| >= |b| */
-static void addmag0(int s, const N a, const N b, N c)
+static void addmag0(int s, const N &a, const N &b, N &c)
 {
      int ia, ib;
      ACC r = 0;
@@ -158,13 +158,13 @@ static void addmag0(int s, const N a, const N b, N c)
      pack(d, EXA + 1, s * SGNA, LEN + 1, c);
 }
 
-static void addmag(int s, const N a, const N b, N c)
+static void addmag(int s, const N &a, const N &b, N &c)
 {
      if (abscmp(a, b) > 0) addmag0(1, a, b, c); else addmag0(s, b, a, c);
 }
 
 /* subtract magnitudes, for |a| >= |b| */
-static void submag0(int s, const N a, const N b, N c)
+static void submag0(int s, const N &a, const N &b, N &c)
 {
      int ia, ib;
      ACC r = 0;
@@ -184,23 +184,23 @@ static void submag0(int s, const N a, const N b, N c)
      pack(d, EXA, s * SGNA, LEN, c);
 }
 
-static void submag(int s, const N a, const N b, N c)
+static void submag(int s, const N a, const N &b, N &c)
 {
      if (abscmp(a, b) > 0) submag0(1, a, b, c); else submag0(s, b, a, c);
 }
 
 /* c = a + b */
-static void add(const N a, const N b, N c)
+static void add(const N &a, const N &b, N &c)
 {
      if (SGNA == SGNB) addmag(1, a, b, c); else submag(1, a, b, c);
 }
 
-static void sub(const N a, const N b, N c)
+static void sub(const N &a, const N &b, N &c)
 {
      if (SGNA == SGNB) submag(-1, a, b, c); else addmag(-1, a, b, c);
 }
 
-static void mul(const N a, const N b, N c)
+static void mul(const N &a, const N &b, N &c)
 {
      DG d[2 * LEN];
      int i, j, k;
@@ -225,7 +225,7 @@ static void mul(const N a, const N b, N c)
      pack(d, EXA + EXB, SGNA * SGNB, 2 * LEN, c);
 }
 
-static REAL toreal(const N a)
+static REAL toreal(const N &a)
 {
      REAL h, l, f;
      int i, bits;
@@ -272,12 +272,12 @@ static REAL toreal(const N a)
      }
 }
 
-static void neg(N a)
+static void neg(N &a)
 {
      SGNA = -SGNA;
 }
 
-static void inv(const N a, N x)
+static void inv(const N &a, N &x)
 {
      N w, z, one, two;
 
@@ -296,25 +296,25 @@ static void inv(const N a, N x)
 
 
 /* 2 pi */
-static const N n2pi = {{
+static const N n2pi = {
      1, 1,
      {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6}
-}};
+};
 
 /* 1 / 31! */
-static const N i31fac = {{ 
+static const N i31fac = {
      1, -7, 
      {28087, 45433, 51357, 24545, 14291, 3954, 57879, 8109, 38716, 41382}
-}};
+};
 
 
 /* 1 / 32! */
-static const N i32fac = {{
+static const N i32fac = {
      1, -7,
      {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293}
-}};
+};
 
-static void msin(const N a, N b)
+static void msin(const N &a, N &b)
 {
      N a2, g, k;
      int i;
@@ -333,7 +333,7 @@ static void msin(const N a, N b)
      mul(a, b, b);
 }
 
-static void mcos(const N a, N b)
+static void mcos(const N &a, N &b)
 {
      N a2, g, k;
      int i;
@@ -351,7 +351,7 @@ static void mcos(const N a, N b)
      }
 }
 
-static void by2pi(REAL m, REAL n, N a)
+static void by2pi(REAL m, REAL n, N &a)
 {
      N b;
 
@@ -362,8 +362,8 @@ static void by2pi(REAL m, REAL n, N a)
      mul(n2pi, a, a);
 }
 
-static void sin2pi(REAL m, REAL n, N a);
-static void cos2pi(REAL m, REAL n, N a)
+static void sin2pi(REAL m, REAL n, N &a);
+static void cos2pi(REAL m, REAL n, N &a)
 {
      N b;
      if (m < 0) cos2pi(-m, n, a);
@@ -373,7 +373,7 @@ static void cos2pi(REAL m, REAL n, N a)
      else { by2pi(m, n, b); mcos(b, a); }
 }
 
-static void sin2pi(REAL m, REAL n, N a)
+static void sin2pi(REAL m, REAL n, N &a)
 {
      N b;
      if (m < 0)  {sin2pi(-m, n, a); neg(a);}
@@ -387,7 +387,7 @@ static void sin2pi(REAL m, REAL n, N a)
 /* FFT stuff */
 
 /* (r0 + i i0)(r1 + i i1) */
-static void cmul(N r0, N i0, N r1, N i1, N r2, N i2)
+static void cmul(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
 {
      N s, t, q;
      mul(r0, r1, s);
@@ -400,7 +400,7 @@ static void cmul(N r0, N i0, N r1, N i1, N r2, N i2)
 }
 
 /* (r0 - i i0)(r1 + i i1) */
-static void cmulj(N r0, N i0, N r1, N i1, N r2, N i2)
+static void cmulj(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
 {
      N s, t, q;
      mul(r0, r1, s);
@@ -412,7 +412,7 @@ static void cmulj(N r0, N i0, N r1, N i1, N r2, N i2)
      cpy(q, r2);
 }
 
-static void cexp(int m, int n, N r, N i)
+static void cexp(int m, int n, N &r, N &i)
 {
      static int cached_n = -1;
      static N w[64][2];
