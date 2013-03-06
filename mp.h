@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cassert>
 #include <array>
 #include <complex>
 #include <limits>
@@ -337,7 +338,8 @@ struct simple_fft {
     std::vector<CN> w, y;
     simple_fft() {}
 
-    void bitrev(int n, CN *a) {
+    void bitrev(std::vector<CN> &a) {
+        const int n = a.size();
         for(int i = 0, j = 0; i < n - 1; ++i) {
             if(i < j) std::swap(a[i], a[j]);
             // bit reversed counter
@@ -349,8 +351,9 @@ struct simple_fft {
         }
     }
 
-    void fft0(int n, CN *a, int sign) {
-        bitrev(n, a);
+    void fft0(std::vector<CN> &a, int sign) {
+        const int n = a.size();
+        bitrev(a);
         for(int i = 1; i < n; i = 2 * i) {
             for(int j = 0; j < i; ++j) {
                 const CN w = exp(sign * j, 2 * i);
@@ -364,87 +367,86 @@ struct simple_fft {
         }
     }
 
-    /// a[k] = exp(i 2 pi k^2 / (2 n))
-    void bluestein_sequence(int n, CN *a) {
-        int ksq = 1; // (-1)^2
-        for (int k = 0; k < n; ++k) {
-            // careful with overflow
-            ksq = ksq + 2 * k - 1;
-            while(ksq > 2 * n) ksq -= 2 * n;
-            a[k] = exp(ksq, 2 * n);
-        }
-    }
-
-
-    void bluestein(int n, CN *a) {
+    void bluestein(std::vector<CN> &a) {
+        const int n = a.size();
         const int nb = pow2_atleast(2 * n);
         std::vector<CN> b(nb);
         const N nbinv = N(1.0 / nb); // exact because nb = 2^k
         if(w.size() != n) {
             w.resize(n);
-            bluestein_sequence(n, w.data());
+            // w[k] = exp(i 2 pi k^2 / (2 n))
+            int ksq = 1; // (-1)^2
+            for (int k = 0; k < n; ++k) {
+                // careful with overflow
+                ksq = ksq + 2 * k - 1;
+                while(ksq > 2 * n) ksq -= 2 * n;
+                w[k] = exp(ksq, 2 * n);
+            }
             y.resize(nb);
             for(int i = 0; i < nb; ++i) y[i] = CN();
             for(int i = 0; i < n; ++i) y[i] = w[i];
             for(int i = 1; i < n; ++i) y[nb-i] = w[i];
-            fft0(nb, y.data(), -1);
+            fft0(y, -1);
         }
         for(int i = 0; i < nb; ++i) b[i] = CN();
         for(int i = 0; i < n; ++i) b[i] = std::conj(w[i]) * a[i];
         // scaled convolution b * y
-        fft0(nb, b.data(), -1);
+        fft0(b, -1);
         for(int i = 0; i < nb; ++i) b[i] *= y[i];
-        fft0(nb, b.data(), 1);
+        fft0(b, 1);
         for(int i = 0; i < n; ++i) a[i] = conj(w[i]) * b[i] * nbinv;
     }
 
-    void swapri(int n, CN *a) {
-        for(int i = 0; i < n; ++i) a[i] = CN(std::imag(a[i]), std::real(a[i]));
+    void swapri(std::vector<CN> &a) {
+        for(auto &x : a) x = CN(std::imag(x), std::real(x));
     }
 
-    void fft1(int n, CN *a, int sign) {
-        if(power_of_two(n))
-            fft0(n, a, sign);
+    void fft1(std::vector<CN> &a, int sign) {
+        if(power_of_two(a.size()))
+            fft0(a, sign);
         else {
-            if(sign == 1) swapri(n, a);
-            bluestein(n, a);
-            if(sign == 1) swapri(n, a);
+            if(sign == 1) swapri(a);
+            bluestein(a);
+            if(sign == 1) swapri(a);
         }
     }
 
-    double compare(int n, const N *a, const N *b, double norm) {
+    double compare(std::vector<CN> &a, std::vector<CN> &b, double norm) {
         const double inf = norm == std::numeric_limits<double>::infinity();
         double e = 0, m = 0;
-        for(int i = 0; i < 2 * n; ++i) {
-            double nd = std::abs(to<double>(a[i]));
-            if(inf) m = std::max(m, nd);
-            else m += std::pow(nd, norm);
-            double ed = std::abs(to<double>(a[i] - b[i]));
-            if(inf) e = std::max(e, ed);
-            else e += std::pow(ed, norm);
+        for(int i = 0; i < a.size(); ++i) {
+#define NORM(b, a) \
+    {double __v = std::abs(to<double>(a)); \
+    if(inf) b = std::max(b, __v); \
+    else b += std::pow(__v, norm);}
+            NORM(m, std::real(a[i]));
+            NORM(m, std::imag(a[i]));
+            const CN d = a[i] - b[i];
+            NORM(e, std::real(d));
+            NORM(e, std::imag(d));
+#undef NORM
         }
         if(inf) return e / m;
         else return std::pow(e / m, 1 / norm);
     }
 
     template<class T>
-    double accuracy(int n, const std::complex<T> *a, const std::complex<T> *ffta, int sign, bool forward = true, double norm = 2) {
+    double accuracy(const std::vector<std::complex<T>> &a, const std::vector<std::complex<T>> &ffta, int sign, bool forward = true, double norm = 2) {
+        const int n = a.size();
+        assert(n == ffta.size());
         std::vector<CN> b(n), fftb(n);
         for(int i = 0 ; i < n ; i++) {
             b[i] = CN(a[i]);
             fftb[i] = CN(ffta[i]);
         }
-        if(forward) {
-            // forward error
-            fft1(n, b.data(), sign);
-            return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
-        } else {
-            // backward error
+        if(forward) { // forward error
+            fft1(b, sign);
+        } else { // backward error
             const N ninv = inv(N(n));
             for(int i = 0; i < n; ++i) fftb[i] *= ninv;
-            fft1(n, fftb.data(), -sign);
-            return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
+            fft1(fftb, -sign);
         }
+        return compare(b, fftb, norm);
     }
 
 };
