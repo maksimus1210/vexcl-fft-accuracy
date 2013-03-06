@@ -300,14 +300,11 @@ static N sin2pi(REAL m, REAL n) {
 struct CN {
     N r, i;
     CN(N r = N(), N i = N()) : r(r), i(i) {}
-};
 
-// (r0 + i i0)(r1 + i i1)
-static void cmul(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &i2) {
-    N t = r0 * r1 - i0 * i1;
-    i2 = r0 * i1 + i0 * r1;
-    r2 = t;
-}
+    CN operator*(const CN &v) const {
+        return CN(r * v.r - i * v.i, r * v.i + i * v.r);
+    }
+};
 
 // (r0 - i i0)(r1 + i i1)
 static void cmulj(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &i2) {
@@ -318,24 +315,23 @@ static void cmulj(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &
 
 static void cexp(int m, int n, N &r, N &i) {
     static int cached_n = -1;
-    static N w[64][2];
+    static CN w[64];
     if(n != cached_n) {
-        for(int j = 1, k = 0; j < n; j += j, ++k) {
-            w[k][0] = cos2pi(j, n);
-            w[k][1] = sin2pi(j, n);
-        }
+        for(int j = 1, k = 0; j < n; j += j, ++k)
+            w[k] = CN(cos2pi(j, n), sin2pi(j, n));
         cached_n = n;
     }
-    r = N(1);
-    i = N(0);
+    CN v(N(1));
     if(m > 0) {
         for(int k = 0; m; ++k, m >>= 1)
-            if(m & 1) cmul(w[k][0], w[k][1], r, i, r, i);
+            if(m & 1) v = w[k] * v;
     } else {
         m = -m;
         for(int k = 0; m; ++k, m >>= 1)
-            if(m & 1) cmulj(w[k][0], w[k][1], r, i, r, i);
+            if(m & 1) cmulj(w[k].r, w[k].i, v.r, v.i, v.r, v.i);
     }
+    r = v.r;
+    i = v.i;
 }
 
 static void bitrev(int n, CN *a) {
@@ -356,8 +352,8 @@ static void fft0(int n, CN *a, int sign) {
     bitrev(n, a);
     for(int i = 1; i < n; i = 2 * i) {
         for(int j = 0; j < i; ++j) {
-            N wr, wi;
-            cexp(sign * j, 2 * i, wr, wi);
+            CN w;
+            cexp(sign * j, 2 * i, w.r, w.i);
             for(int k = j; k < n; k += 2 * i) {
                 CN *a0 = a + k;
                 CN *a1 = a0 + i;
@@ -365,12 +361,11 @@ static void fft0(int n, CN *a, int sign) {
                 const N i0 = a0->i;
                 const N r1 = a1->r;
                 const N i1 = a1->i;
-                N xr, xi;
-                cmul(r1, i1, wr, wi, xr, xi);
-                a0->r = r0 + xr;
-                a0->i = i0 + xi;
-                a1->r = r0 - xr;
-                a1->i = i0 - xi;
+                CN x = *a1 * w;
+                a0->r = r0 + x.r;
+                a0->i = i0 + x.i;
+                a1->r = r0 - x.r;
+                a1->i = i0 - x.i;
             }
         }
     }
@@ -425,7 +420,7 @@ static void bluestein(int n, CN *a) {
     fft0(nb, b, -1);
 
     for(int i = 0; i < nb; ++i)
-        cmul(b[i].r, b[i].i, y[i].r, y[i].i, b[i].r, b[i].i);
+        b[i] = b[i] * y[i];
     fft0(nb, b, 1);
 
     for(int i = 0; i < n; ++i) {
