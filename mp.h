@@ -49,12 +49,12 @@ typedef struct {
 
 static const N zero = { 1, ZEROEXP, {0} };
 
-static void fromreal(REAL x, N &a)
+static N fromreal(REAL x)
 {
+    N a = zero;
      int i, e;
 
-     a = zero;
-     if (x == 0.0) return;
+     if (x == 0.0) return a;
      
      if (x > 0) { SGNA = 1; }
      else       { SGNA = -1; x = -x; }
@@ -72,6 +72,7 @@ static void fromreal(REAL x, N &a)
 	  AD[i] = (DG)y;
 	  x -= y;
      }
+     return a;
 }
 
 static void fromshort(int x, N &a)
@@ -276,7 +277,7 @@ static void inv(const N &a, N &x)
 {
      N w, z, one, two;
 
-     fromreal(1.0 / toreal(a), x); /* initial guess */
+     x = fromreal(1.0 / toreal(a)); /* initial guess */
      fromshort(1, one);
      fromshort(2, two);
 
@@ -350,9 +351,9 @@ static void by2pi(REAL m, REAL n, N &a)
 {
      N b;
 
-     fromreal(n, b);
+     b = fromreal(n);
      inv(b, a);
-     fromreal(m, b);
+     b = fromreal(m);
      mul(a, b, a);
      mul(n2pi, a, a);
 }
@@ -513,7 +514,7 @@ static void bluestein(int n, N *a)
      N nbinv;
      int i;
 
-     fromreal(1.0 / nb, nbinv); /* exact because nb = 2^k */
+     nbinv = fromreal(1.0 / nb); /* exact because nb = 2^k */
 
      if (cached_bluestein_n != n) {
 	  if (w) bench_free(w);
@@ -587,8 +588,8 @@ static void fromrealv(int n, bench_complex *a, N *b)
      int i;
 
      for (i = 0; i < n; ++i) {
-	  fromreal(c_re(a[i]), b[2 * i]);
-	  fromreal(c_im(a[i]), b[2 * i + 1]);
+	  b[2 * i] = fromreal(c_re(a[i]));
+	  b[2 * i + 1] = fromreal(c_im(a[i]));
      }
 }
 
@@ -628,7 +629,8 @@ void fftaccuracy(int n, bench_complex *a, bench_complex *ffta,
      N mn, ninv;
      int i;
 
-     fromreal(n, mn); inv(mn, ninv);
+     mn = fromreal(n);
+     inv(mn, ninv);
 
      /* forward error */
      fromrealv(n, a, b); fromrealv(n, ffta, fftb);
