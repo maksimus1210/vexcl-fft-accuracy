@@ -306,11 +306,8 @@ struct CN {
     }
 };
 
-// (r0 - i i0)(r1 + i i1)
-static void cmulj(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &i2) {
-    N t = r0 * r1 + i0 * i1;
-    i2 = r0 * i1 - i0 * r1;
-    r2 = t;
+static CN conj(const CN &v) {
+    return CN(v.r, -v.i);
 }
 
 static CN exp(int m, int n) {
@@ -328,7 +325,7 @@ static CN exp(int m, int n) {
     } else {
         m = -m;
         for(int k = 0; m; ++k, m >>= 1)
-            if(m & 1) cmulj(w[k].r, w[k].i, v.r, v.i, v.r, v.i);
+            if(m & 1) v = conj(w[k]) * v;
     }
     return v;
 }
@@ -411,8 +408,7 @@ static void bluestein(int n, CN *a) {
         cached_bluestein_y = y;
     }
     for(int i = 0; i < nb; ++i) b[i] = CN(0);
-    for(int i = 0; i < n; ++i)
-        cmulj(w[i].r, w[i].i, a[i].r, a[i].i, b[i].r, b[i].i);
+    for(int i = 0; i < n; ++i) b[i] = conj(w[i]) * a[i];
 
     // scaled convolution b * y
     fft0(nb, b, -1);
@@ -422,7 +418,7 @@ static void bluestein(int n, CN *a) {
     fft0(nb, b, 1);
 
     for(int i = 0; i < n; ++i) {
-        cmulj(w[i].r, w[i].i, b[i].r, b[i].i, a[i].r, a[i].i);
+        a[i] = conj(w[i]) * b[i];
         a[i].r *= nbinv;
         a[i].i *= nbinv;
     }
