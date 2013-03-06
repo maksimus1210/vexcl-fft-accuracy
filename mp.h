@@ -4,14 +4,6 @@
 #include <limits>
 #include <vector>
 
-int power_of_two(unsigned int n)
-{
-        return (((n) > 0) && (((n) & ((n) - 1)) == 0));
-}
-
-#define c_re(x) (x).s[0]
-#define c_im(x) (x).s[1]
-
 typedef unsigned short DG;
 typedef unsigned long ACC;
 const size_t BITS_IN_REAL = 53; // mantissa
@@ -301,9 +293,20 @@ static N sin2pi(double m, double n) {
 
 typedef std::complex<N> CN;
 
-static CN exp(int m, int n) {
+int power_of_two(unsigned int n) {
+    return (((n) > 0) && (((n) & ((n) - 1)) == 0));
+}
+
+static int pow2_atleast(int x) {
+    int h;
+    for(h = 1; h < x; h = 2 * h);
+    return h;
+}
+
+/// exp(i 2 pi m / n)
+static std::complex<N> exp(int m, int n) {
     static int cached_n = -1;
-    static CN w[64];
+    static std::complex<N> w[64];
     if(n != cached_n) {
         for(int j = 1, k = 0; j < n; j += j, ++k)
             w[k] = CN(cos2pi(j, n), sin2pi(j, n));
@@ -321,139 +324,124 @@ static CN exp(int m, int n) {
     return v;
 }
 
-static void bitrev(int n, CN *a) {
-    for(int i = 0, j = 0; i < n - 1; ++i) {
-        if(i < j) std::swap(a[i], a[j]);
-        // bit reversed counter
-        int m = n;
-        do {
-            m >>= 1;
-            j ^= m;
-        } while(!(j & m));
-    }
-}
+struct simple_fft {
 
-static void fft0(int n, CN *a, int sign) {
-    bitrev(n, a);
-    for(int i = 1; i < n; i = 2 * i) {
-        for(int j = 0; j < i; ++j) {
-            const CN w = exp(sign * j, 2 * i);
-            for(int k = j; k < n; k += 2 * i) {
-                const CN v = a[k];
-                const CN x = a[k + i] * w;
-                a[k] = v + x;
-                a[k + i] = v - x;
+    std::vector<CN> w, y;
+
+    simple_fft() {}
+
+
+    void bitrev(int n, CN *a) {
+        for(int i = 0, j = 0; i < n - 1; ++i) {
+            if(i < j) std::swap(a[i], a[j]);
+            // bit reversed counter
+            int m = n;
+            do {
+                m >>= 1;
+                j ^= m;
+            } while(!(j & m));
+        }
+    }
+
+    void fft0(int n, CN *a, int sign) {
+        bitrev(n, a);
+        for(int i = 1; i < n; i = 2 * i) {
+            for(int j = 0; j < i; ++j) {
+                const CN w = exp(sign * j, 2 * i);
+                for(int k = j; k < n; k += 2 * i) {
+                    const CN v = a[k];
+                    const CN x = a[k + i] * w;
+                    a[k] = v + x;
+                    a[k + i] = v - x;
+                }
             }
         }
     }
-}
 
-/// a[2*k]+i*a[2*k+1] = exp(2*pi*i*k^2/(2*n))
-static void bluestein_sequence(int n, CN *a) {
-    int ksq = 1; // (-1)^2
-    for (int k = 0; k < n; ++k) {
-        // careful with overflow
-        ksq = ksq + 2 * k - 1;
-        while(ksq > 2 * n) ksq -= 2 * n;
-        a[k] = exp(ksq, 2 * n);
+    /// a[k] = exp(i 2 pi k^2 / (2 n))
+    void bluestein_sequence(int n, CN *a) {
+        int ksq = 1; // (-1)^2
+        for (int k = 0; k < n; ++k) {
+            // careful with overflow
+            ksq = ksq + 2 * k - 1;
+            while(ksq > 2 * n) ksq -= 2 * n;
+            a[k] = exp(ksq, 2 * n);
+        }
     }
-}
 
-static int pow2_atleast(int x) {
-    int h;
-    for(h = 1; h < x; h = 2 * h);
-    return h;
-}
 
-static CN *cached_bluestein_w = 0;
-static CN *cached_bluestein_y = 0;
-static int cached_bluestein_n = -1;
-
-static void bluestein(int n, CN *a) {
-    const int nb = pow2_atleast(2 * n);
-    CN *b = new CN[nb];
-    CN *w = cached_bluestein_w;
-    CN *y = cached_bluestein_y;
-    const N nbinv = N(1.0 / nb); // exact because nb = 2^k
-    if(cached_bluestein_n != n) {
-        if(w) delete [] w;
-        if(y) delete [] y;
-        w = new CN[n];
-        y = new CN[nb];
-        bluestein_sequence(n, w);
-        for(int i = 0; i < nb; ++i) y[i] = CN();
-        for(int i = 0; i < n; ++i) y[i] = w[i];
-        for(int i = 1; i < n; ++i) y[nb-i] = w[i];
-        fft0(nb, y, -1);
-        cached_bluestein_n = n;
-        cached_bluestein_w = w;
-        cached_bluestein_y = y;
+    void bluestein(int n, CN *a) {
+        const int nb = pow2_atleast(2 * n);
+        std::vector<CN> b(nb);
+        const N nbinv = N(1.0 / nb); // exact because nb = 2^k
+        if(w.size() != n) {
+            w.resize(n);
+            bluestein_sequence(n, w.data());
+            y.resize(nb);
+            for(int i = 0; i < nb; ++i) y[i] = CN();
+            for(int i = 0; i < n; ++i) y[i] = w[i];
+            for(int i = 1; i < n; ++i) y[nb-i] = w[i];
+            fft0(nb, y.data(), -1);
+        }
+        for(int i = 0; i < nb; ++i) b[i] = CN();
+        for(int i = 0; i < n; ++i) b[i] = std::conj(w[i]) * a[i];
+        // scaled convolution b * y
+        fft0(nb, b.data(), -1);
+        for(int i = 0; i < nb; ++i) b[i] *= y[i];
+        fft0(nb, b.data(), 1);
+        for(int i = 0; i < n; ++i) a[i] = conj(w[i]) * b[i] * nbinv;
     }
-    for(int i = 0; i < nb; ++i) b[i] = CN();
-    for(int i = 0; i < n; ++i) b[i] = std::conj(w[i]) * a[i];
-    // scaled convolution b * y
-    fft0(nb, b, -1);
-    for(int i = 0; i < nb; ++i) b[i] *= y[i];
-    fft0(nb, b, 1);
-    for(int i = 0; i < n; ++i) a[i] = conj(w[i]) * b[i] * nbinv;
-    delete [] b;
-}
 
-static void swapri(int n, CN *a) {
-    for(int i = 0; i < n; ++i) a[i] = CN(std::imag(a[i]), std::real(a[i]));
-}
-
-static void fft1(int n, CN *a, int sign) {
-    if(power_of_two(n))
-        fft0(n, a, sign);
-    else {
-        if(sign == 1) swapri(n, a);
-        bluestein(n, a);
-        if(sign == 1) swapri(n, a);
+    void swapri(int n, CN *a) {
+        for(int i = 0; i < n; ++i) a[i] = CN(std::imag(a[i]), std::real(a[i]));
     }
-}
 
-template<class T>
-static void fromrealv(int n, const std::complex<T> *a, CN *b) {
-    for(int i = 0; i < n; ++i)
-        b[i] = CN(N(std::real(a[i])), N(std::imag(a[i])));
-}
-
-static double compare(int n, const N *a, const N *b, double norm) {
-    const double inf = norm == std::numeric_limits<double>::infinity();
-    double e = 0, m = 0;
-    for(int i = 0; i < 2 * n; ++i) {
-        double nd = std::abs(to<double>(a[i]));
-        if(inf) m = std::max(m, nd);
-        else m += std::pow(nd, norm);
-        double ed = std::abs(to<double>(a[i] - b[i]));
-        if(inf) e = std::max(e, ed);
-        else e += std::pow(ed, norm);
+    void fft1(int n, CN *a, int sign) {
+        if(power_of_two(n))
+            fft0(n, a, sign);
+        else {
+            if(sign == 1) swapri(n, a);
+            bluestein(n, a);
+            if(sign == 1) swapri(n, a);
+        }
     }
-    if(inf) return e / m;
-    else return std::pow(e / m, 1 / norm);
-}
 
-template<class T>
-double fftaccuracy(int n, const std::complex<T> *a, const std::complex<T> *ffta, int sign, bool forward = true, double norm = 2) {
-    std::vector<CN> b(n), fftb(n);
+    template<class T>
+    void fromrealv(int n, const std::complex<T> *a, CN *b) {
+        for(int i = 0; i < n; ++i)
+            b[i] = CN(N(std::real(a[i])), N(std::imag(a[i])));
+    }
 
-    if(forward) {
-        // forward error
+    double compare(int n, const N *a, const N *b, double norm) {
+        const double inf = norm == std::numeric_limits<double>::infinity();
+        double e = 0, m = 0;
+        for(int i = 0; i < 2 * n; ++i) {
+            double nd = std::abs(to<double>(a[i]));
+            if(inf) m = std::max(m, nd);
+            else m += std::pow(nd, norm);
+            double ed = std::abs(to<double>(a[i] - b[i]));
+            if(inf) e = std::max(e, ed);
+            else e += std::pow(ed, norm);
+        }
+        if(inf) return e / m;
+        else return std::pow(e / m, 1 / norm);
+    }
+
+    template<class T>
+    double accuracy(int n, const std::complex<T> *a, const std::complex<T> *ffta, int sign, bool forward = true, double norm = 2) {
+        std::vector<CN> b(n), fftb(n);
         fromrealv(n, a, b.data()); fromrealv(n, ffta, fftb.data());
-        fft1(n, b.data(), sign);
-        return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
-    } else {
-        // backward error
-        fromrealv(n, a, b.data()); fromrealv(n, ffta, fftb.data());
-        const N ninv = inv(N(n));
-        for(int i = 0; i < n; ++i) fftb[i] *= ninv;
-        fft1(n, fftb.data(), -sign);
-        return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
+        if(forward) {
+            // forward error
+            fft1(n, b.data(), sign);
+            return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
+        } else {
+            // backward error
+            const N ninv = inv(N(n));
+            for(int i = 0; i < n; ++i) fftb[i] *= ninv;
+            fft1(n, fftb.data(), -sign);
+            return compare(n, (N*)b.data(), (N*)fftb.data(), norm);
+        }
     }
-}
 
-void fftaccuracy_done() {
-    if(cached_bluestein_w) delete [] cached_bluestein_w;
-    if(cached_bluestein_y) delete [] cached_bluestein_y;
-}
+};
