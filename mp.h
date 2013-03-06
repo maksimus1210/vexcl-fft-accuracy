@@ -280,103 +280,75 @@ static N by2pi(REAL m, REAL n) {
 
 static N sin2pi(REAL m, REAL n);
 static N cos2pi(REAL m, REAL n) {
-    N a,b;
-    if (m < 0) a = cos2pi(-m, n);
-    else if (m > n * 0.5) a = cos2pi(n - m, n);
-    else if (m > n * 0.25) a = -sin2pi(m - n * 0.25, n);
-    else if (m > n * 0.125) a = sin2pi(n * 0.25 - m, n);
-    else { b = by2pi(m, n); a = cos(b); }
-    return a;
+    if(m < 0) return cos2pi(-m, n);
+    else if(m > n * 0.5) return cos2pi(n - m, n);
+    else if(m > n * 0.25) return -sin2pi(m - n * 0.25, n);
+    else if(m > n * 0.125) return sin2pi(n * 0.25 - m, n);
+    else return cos(by2pi(m, n));
 }
 
-static N sin2pi(REAL m, REAL n)
-{
-    N a,b;
-    if (m < 0)  a = -sin2pi(-m, n);
-    else if (m > n * 0.5) a = -sin2pi(n - m, n);
-    else if (m > n * 0.25) a = cos2pi(m - n * 0.25, n);
-    else if (m > n * 0.125) a = cos2pi(n * 0.25 - m, n);
-    else {b = by2pi(m, n); a = sin(b);}
-    return a;
+static N sin2pi(REAL m, REAL n) {
+    if(m < 0) return -sin2pi(-m, n);
+    else if(m > n * 0.5) return -sin2pi(n - m, n);
+    else if(m > n * 0.25) return cos2pi(m - n * 0.25, n);
+    else if(m > n * 0.125) return cos2pi(n * 0.25 - m, n);
+    else return sin(by2pi(m, n));
 }
 
-/*----------------------------------------------------------------------*/
-/* FFT stuff */
+// FFT stuff
 
-/* (r0 + i i0)(r1 + i i1) */
-static void cmul(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
-{
-    N s, t, q;
-    s = r0 * r1;
-    t = i0 * i1;
-    q = s - t;
-    s = r0 * i1;
-    t = i0 * r1;
-    i2 = s + t;
-    r2 = q;
+// (r0 + i i0)(r1 + i i1)
+static void cmul(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &i2) {
+    N t = r0 * r1 - i0 * i1;
+    i2 = r0 * i1 + i0 * r1;
+    r2 = t;
 }
 
-/* (r0 - i i0)(r1 + i i1) */
-static void cmulj(N &r0, N &i0, N &r1, N &i1, N &r2, N &i2)
-{
-    N s, t, q;
-    s = r0 * r1;
-    t = i0 * i1;
-    q = s + t;
-    s = r0 * i1;
-    t = i0 * r1;
-    i2 = s - t;
-    r2 = q;
+// (r0 - i i0)(r1 + i i1)
+static void cmulj(const N &r0, const N &i0, const N &r1, const N &i1, N &r2, N &i2) {
+    N t = r0 * r1 + i0 * i1;
+    i2 = r0 * i1 - i0 * r1;
+    r2 = t;
 }
 
-static void cexp(int m, int n, N &r, N &i)
-{
+static void cexp(int m, int n, N &r, N &i) {
     static int cached_n = -1;
     static N w[64][2];
-    int k, j;
-    if (n != cached_n) {
-        for (j = 1, k = 0; j < n; j += j, ++k) {
+    if(n != cached_n) {
+        for(int j = 1, k = 0; j < n; j += j, ++k) {
             w[k][0] = cos2pi(j, n);
             w[k][1] = sin2pi(j, n);
         }
         cached_n = n;
     }
-
     r = N(1);
     i = N(0);
-    if (m > 0) {
-        for (k = 0; m; ++k, m >>= 1) 
-            if (m & 1)
-                cmul(w[k][0], w[k][1], r, i, r, i);
+    if(m > 0) {
+        for(int k = 0; m; ++k, m >>= 1)
+            if(m & 1) cmul(w[k][0], w[k][1], r, i, r, i);
     } else {
         m = -m;
-        for (k = 0; m; ++k, m >>= 1) 
-            if (m & 1)
-                cmulj(w[k][0], w[k][1], r, i, r, i);
+        for(int k = 0; m; ++k, m >>= 1)
+            if(m & 1) cmulj(w[k][0], w[k][1], r, i, r, i);
     }
 }
 
-static void bitrev(int n, N *a)
-{
-    int i, j, m;
-    for (i = j = 0; i < n - 1; ++i) {
-        if (i < j) {
-            N t;
-            t = a[2*i];
-         a[2*i] = a[2*j];
-         a[2*j] = t;
-            t = a[2*i+1];
-         a[2*i+1] = a[2*j+1];
-         a[2*j+1] = t;
+static void bitrev(int n, N *a) {
+    for(int i = 0, j = 0; i < n - 1; ++i) {
+        if(i < j) {
+            std::swap(a[2*i], a[2*j]);
+            std::swap(a[2*i+1], a[2*j+1]);
         }
-
-        /* bit reversed counter */
-        m = n; do { m >>= 1; j ^= m; } while (!(j & m));
+        // bit reversed counter
+        int m = n;
+        do {
+            m >>= 1;
+            j ^= m;
+        } while(!(j & m));
     }
 }
 
-static void fft0(int n, N *a, int sign)
-{
+static void fft0(int n, N *a, int sign) {
     int i, j, k;
 
     bitrev(n, a);
