@@ -349,54 +349,43 @@ static void bitrev(int n, N *a) {
 }
 
 static void fft0(int n, N *a, int sign) {
-    int i, j, k;
-
     bitrev(n, a);
-    for (i = 1; i < n; i = 2 * i) {
-        for (j = 0; j < i; ++j) {
+    for(int i = 1; i < n; i = 2 * i) {
+        for(int j = 0; j < i; ++j) {
             N wr, wi;
-            cexp(sign * (int)j, 2 * i, wr, wi);
-            for (k = j; k < n; k += 2 * i) {
+            cexp(sign * j, 2 * i, wr, wi);
+            for(int k = j; k < n; k += 2 * i) {
                 N *a0 = a + 2 * k;
                 N *a1 = a0 + 2 * i;
-                N r0, i0, r1, i1, t0, t1, xr, xi;
-                r0 = a0[0];
-          i0 = a0[1];
-                r1 = a1[0];
-          i1 = a1[1];
-                t0 = r1 * wr;
-          t1 = i1 * wi;
-          xr = t0 - t1;
-                t0 = r1 * wi;
-          t1 = i1 * wr;
-          xi = t0 + t1;
-                a0[0] = r0 + xr; 
-          a0[1] = i0 + xi;
+                const N r0 = a0[0];
+                const N i0 = a0[1];
+                const N r1 = a1[0];
+                const N i1 = a1[1];
+                N xr, xi;
+                cmul(r1, i1, wr, wi, xr, xi);
+                a0[0] = r0 + xr;
+                a0[1] = i0 + xi;
                 a1[0] = r0 - xr;
-          a1[1] = i0 - xi;
+                a1[1] = i0 - xi;
             }
         }
     }
 }
 
-/* a[2*k]+i*a[2*k+1] = exp(2*pi*i*k^2/(2*n)) */
-static void bluestein_sequence(int n, N *a)
-{
-    int k, ksq, n2 = 2 * n;
-
-    ksq = 1; /* (-1)^2 */
-    for (k = 0; k < n; ++k) {
-        /* careful with overflow */
-        ksq = ksq + 2*k - 1; while (ksq > n2) ksq -= n2;
-        cexp(ksq, n2, a[2*k], a[2*k+1]);
+/// a[2*k]+i*a[2*k+1] = exp(2*pi*i*k^2/(2*n))
+static void bluestein_sequence(int n, N *a) {
+    int ksq = 1; // (-1)^2
+    for (int k = 0; k < n; ++k) {
+        // careful with overflow
+        ksq = ksq + 2 * k - 1;
+        while(ksq > 2 * n) ksq -= 2 * n;
+        cexp(ksq, 2 * n, a[2*k], a[2*k+1]);
     }
 }
 
-static int pow2_atleast(int x)
-{
+static int pow2_atleast(int x) {
     int h;
-    for (h = 1; h < x; h = 2 * h)
-        ;
+    for(h = 1; h < x; h = 2 * h);
     return h;
 }
 
@@ -404,125 +393,97 @@ static N *cached_bluestein_w = 0;
 static N *cached_bluestein_y = 0;
 static int cached_bluestein_n = -1;
 
-static void bluestein(int n, N *a)
-{
-    int nb = pow2_atleast(2 * n);
-    N *b = (N *)bench_malloc(2 * nb * sizeof(N));
+static void bluestein(int n, N *a) {
+    const int nb = pow2_atleast(2 * n);
+    N *b = new N[2 * nb];
     N *w = cached_bluestein_w;
     N *y = cached_bluestein_y;
-    N nbinv;
-    int i;
-
-    nbinv = N(1.0 / nb); /* exact because nb = 2^k */
-
-    if (cached_bluestein_n != n) {
-        if (w) bench_free(w);
-        if (y) bench_free(y);
-        w = (N *)bench_malloc(2 * n * sizeof(N));
-        y = (N *)bench_malloc(2 * nb * sizeof(N));
-
+    N nbinv = N(1.0 / nb); // exact because nb = 2^k
+    if(cached_bluestein_n != n) {
+        if(w) delete [] w;
+        if(y) delete [] y;
+        w = new N[2 * n];
+        y = new N[2 * nb];
         bluestein_sequence(n, w);
-        for (i = 0; i < 2*nb; ++i)  y[i] = N(0);
-
-        for (i = 0; i < n; ++i) {
+        for(int i = 0; i < 2*nb; ++i) y[i] = N(0);
+        for(int i = 0; i < n; ++i) {
             y[2*i] = w[2*i];
             y[2*i+1] = w[2*i+1];
         }
-        for (i = 1; i < n; ++i) {
+        for(int i = 1; i < n; ++i) {
             y[2*(nb-i)] = w[2*i];
             y[2*(nb-i)+1] = w[2*i+1];
         }
-
         fft0(nb, y, -1);
         cached_bluestein_n = n;
         cached_bluestein_w = w;
         cached_bluestein_y = y;
     }
-
-    for (i = 0; i < 2*nb; ++i)  b[i] = N(0);
-    
-    for (i = 0; i < n; ++i) 
+    for(int i = 0; i < 2*nb; ++i) b[i] = N(0);
+    for(int i = 0; i < n; ++i)
         cmulj(w[2*i], w[2*i+1], a[2*i], a[2*i+1], b[2*i], b[2*i+1]);
 
-    /* scaled convolution b * y */
+    // scaled convolution b * y
     fft0(nb, b, -1);
 
-    for (i = 0; i < nb; ++i) 
+    for(int i = 0; i < nb; ++i)
         cmul(b[2*i], b[2*i+1], y[2*i], y[2*i+1], b[2*i], b[2*i+1]);
     fft0(nb, b, 1);
 
-    for (i = 0; i < n; ++i) {
+    for(int i = 0; i < n; ++i) {
         cmulj(w[2*i], w[2*i+1], b[2*i], b[2*i+1], a[2*i], a[2*i+1]);
         a[2*i] = nbinv * a[2*i];
         a[2*i+1] = nbinv * a[2*i+1];
     }
-
-    bench_free(b);
+    delete [] b;
 }
 
-static void swapri(int n, N *a)
-{
-    int i;
-    for (i = 0; i < n; ++i) {
-        N t;
-        t = a[2 * i];
-        a[2 * i] = a[2 * i + 1];
-        a[2 * i + 1] = t;
-    }
+static void swapri(int n, N *a) {
+    for(int i = 0; i < n; ++i)
+        std::swap(a[2 * i], a[2 * i + 1]);
 }
 
-static void fft1(int n, N *a, int sign)
-{
-    if (power_of_two(n)) {
+static void fft1(int n, N *a, int sign) {
+    if(power_of_two(n))
         fft0(n, a, sign);
-    } else {
-        if (sign == 1) swapri(n, a);
+    else {
+        if(sign == 1) swapri(n, a);
         bluestein(n, a);
-        if (sign == 1) swapri(n, a);
+        if(sign == 1) swapri(n, a);
     }
 }
 
-static void fromrealv(int n, bench_complex *a, N *b)
-{
-    int i;
-
-    for (i = 0; i < n; ++i) {
+static void fromrealv(int n, const bench_complex *a, N *b) {
+    for (int i = 0; i < n; ++i) {
         b[2 * i] = N(c_re(a[i]));
         b[2 * i + 1] = N(c_im(a[i]));
     }
 }
 
-static void compare(int n, N *a, N *b, double *err)
-{
-    int i;
-    double e1, e2, einf;
-    double n1, n2, ninf;
-
-    e1 = e2 = einf = 0.0;
-    n1 = n2 = ninf = 0.0;
-
-#    define DO(x1, x2, xinf, var) {                   \
-    double d = var;                              \
-    if (d < 0) d = -d;                              \
-    x1 += d; x2 += d * d; if (d > xinf) xinf = d;      \
-}
-        
-    for (i = 0; i < 2 * n; ++i) {
-        N dd;
-        dd = a[i] - b[i];
-        DO(n1, n2, ninf, toreal(a[i]));
-        DO(e1, e2, einf, toreal(dd));
+static void compare(int n, const N *a, const N *b, double err[3]) {
+    double e1 = 0, e2 = 0, einf = 0;
+    double n1 = 0, n2 = 0, ninf = 0;
+    for(int i = 0; i < 2 * n; ++i) {
+        N dd = a[i] - b[i];
+        {
+            double d = std::abs(toreal(a[i]));
+            n1 += d;
+            n2 += d * d;
+            if(d > ninf) ninf = d;
+        }
+        {
+            double d = std::abs(toreal(dd));
+            e1 += d;
+            e2 += d * d;
+            if(d > einf) einf = d;
+        }
     }
-
-#    undef DO
     err[0] = e1 / n1;
     err[1] = sqrt(e2 / n2);
     err[2] = einf / ninf;
 }
 
-void fftaccuracy(int n, bench_complex *a, bench_complex *ffta,
-             int sign, double err[6])
-{
+void fftaccuracy(int n, const bench_complex *a, const bench_complex *ffta, int sign, double err[6]) {
     N *b = (N *)bench_malloc(2 * n * sizeof(N));
     N *fftb = (N *)bench_malloc(2 * n * sizeof(N));
     N mn, ninv;
@@ -531,12 +492,12 @@ void fftaccuracy(int n, bench_complex *a, bench_complex *ffta,
     mn = N(n);
     ninv = inv(mn);
 
-    /* forward error */
+    // forward error
     fromrealv(n, a, b); fromrealv(n, ffta, fftb);
     fft1(n, b, sign);
     compare(n, b, fftb, err);
 
-    /* backward error */
+    // backward error
     fromrealv(n, a, b); fromrealv(n, ffta, fftb);
     for (i = 0; i < 2 * n; ++i) fftb[i] = fftb[i] * ninv;
     fft1(n, fftb, -sign);
