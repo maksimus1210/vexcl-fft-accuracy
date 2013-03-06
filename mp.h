@@ -65,16 +65,6 @@ struct N {
     }
 };
 
-#define EXA a.expt
-#define EXB b.expt
-#define EXC c.expt
-
-#define AD a.d
-#define BD b.d
-
-#define SGNA a.sign
-#define SGNB b.sign
-
 
 static N pack(DG *d, int e, int s, int l) {
     int i;
@@ -85,14 +75,11 @@ static N pack(DG *d, int e, int s, int l) {
     a.expt = e;
     a.sign = s;
     if(i >= LEN - 1) {
-        for(int j = LEN - 1; j >= 0; --i, --j)
-            a.d[j] = d[i];
+        for(int j = LEN - 1; j >= 0; --i, --j) a.d[j] = d[i];
     } else {
         int j;
-        for(j = LEN - 1; i >= 0; --i, --j)
-            a.d[j] = d[i];
-        for ( ; j >= 0; --j)
-            a.d[j] = 0;
+        for(j = LEN - 1; i >= 0; --i, --j) a.d[j] = d[i];
+        for(; j >= 0; --j) a.d[j] = 0;
     }
     return a;
 }
@@ -100,17 +87,17 @@ static N pack(DG *d, int e, int s, int l) {
 
 /// compare absolute values
 static int abscmp(const N &a, const N &b) {
-    if(EXA > EXB) return 1;
-    if(EXA < EXB) return -1;
+    if(a.expt > b.expt) return 1;
+    if(a.expt < b.expt) return -1;
     for(int i = LEN - 1; i >= 0; --i) {
-        if(AD[i] > BD[i]) return 1;
-        if(AD[i] < BD[i]) return -1;
+        if(a.d[i] > b.d[i]) return 1;
+        if(a.d[i] < b.d[i]) return -1;
     }
     return 0;
 }
 
 static bool operator==(const N &a, const N &b) {
-    return (SGNA == SGNB) && (abscmp(a, b) == 0);
+    return (a.sign == b.sign) && (abscmp(a, b) == 0);
 }
 
 /// add magnitudes, for |a| >= |b|
@@ -118,18 +105,18 @@ static N addmag0(int s, const N &a, const N &b) {
     int ia, ib;
     ACC r = 0;
     DG d[LEN + 1];
-    for(ia = 0, ib = EXA - EXB; ib < LEN; ++ia, ++ib) {
-        r += (ACC)AD[ia] + (ACC)BD[ib];
+    for(ia = 0, ib = a.expt - b.expt; ib < LEN; ++ia, ++ib) {
+        r += (ACC)a.d[ia] + (ACC)b.d[ib];
         d[ia] = LO(r);
         r = HI(r);
     }
     for(; ia < LEN; ++ia) {
-        r += (ACC)AD[ia];
+        r += (ACC)a.d[ia];
         d[ia] = LO(r);
         r = HI(r);
     }
     d[ia] = LO(r);
-    return pack(d, EXA + 1, s * SGNA, LEN + 1);
+    return pack(d, a.expt + 1, s * a.sign, LEN + 1);
 }
 
 static N addmag(int s, const N &a, const N &b) {
@@ -141,17 +128,17 @@ static N submag0(int s, const N &a, const N &b) {
     int ia, ib;
     ACC r = 0;
     DG d[LEN];
-    for (ia = 0, ib = EXA - EXB; ib < LEN; ++ia, ++ib) {
-        r += (ACC)AD[ia] - (ACC)BD[ib];
+    for (ia = 0, ib = a.expt - b.expt; ib < LEN; ++ia, ++ib) {
+        r += (ACC)a.d[ia] - (ACC)b.d[ib];
         d[ia] = LO(r);
         r = HI_SIGNED(r);
     }
     for (; ia < LEN; ++ia) {
-        r += (ACC)AD[ia];
+        r += (ACC)a.d[ia];
         d[ia] = LO(r);
         r = HI_SIGNED(r);
     }
-    return pack(d, EXA, s * SGNA, LEN);
+    return pack(d, a.expt, s * a.sign, LEN);
 }
 
 static N submag(int s, const N a, const N &b) {
@@ -159,11 +146,11 @@ static N submag(int s, const N a, const N &b) {
 }
 
 static N operator+(const N &a, const N &b) {
-    return (SGNA == SGNB) ? addmag(1, a, b) : submag(1, a, b);
+    return (a.sign == b.sign) ? addmag(1, a, b) : submag(1, a, b);
 }
 
 static N operator-(const N &a, const N &b) {
-    return (SGNA == SGNB) ? submag(-1, a, b) : addmag(-1, a, b);
+    return (a.sign == b.sign) ? submag(-1, a, b) : addmag(-1, a, b);
 }
 
 static N operator*(const N &a, const N &b) {
@@ -173,18 +160,18 @@ static N operator*(const N &a, const N &b) {
     for(i = 0; i < LEN; ++i)
         d[2 * i] = d[2 * i + 1] = 0;
     for(i = 0; i < LEN; ++i) {
-        ACC ai = AD[i];
+        ACC ai = a.d[i];
         if(ai) {
             r = 0;
             for(j = 0, k = i; j < LEN; ++j, ++k) {
-                r += ai * (ACC)BD[j] + (ACC)d[k];
+                r += ai * (ACC)b.d[j] + (ACC)d[k];
                 d[k] = LO(r);
                 r = HI(r);
             }
             d[k] = LO(r);
         }
     }
-    return pack(d, EXA + EXB, SGNA * SGNB, 2 * LEN);
+    return pack(d, a.expt + b.expt, a.sign * b.sign, 2 * LEN);
 }
 
 static N operator*=(N &a, const N &b) {
@@ -198,18 +185,18 @@ static REAL toreal(const N &a) {
     ACC r;
     DG sticky;
 
-    if (EXA != ZEROEXP) {
+    if (a.expt != ZEROEXP) {
         f = IRADIX;
         i = LEN;
 
         bits = 0;
-        h = (r = AD[--i]) * f; f *= IRADIX;
+        h = (r = a.d[--i]) * f; f *= IRADIX;
         for (bits = 0; r > 0; ++bits)
             r >>= 1;
 
         // first digit
         while (bits + SHFT <= BITS_IN_REAL) {
-            h += AD[--i] * f;
+            h += a.d[--i] * f;
             f *= IRADIX;
             bits += SHFT;
         }
@@ -217,21 +204,21 @@ static REAL toreal(const N &a) {
         // guard digit (leave one bit for sticky bit, hence `<' instead of `<=')
         bits = 0; l = 0.0;
         while (bits + SHFT < BITS_IN_REAL) {
-            l += AD[--i] * f;
+            l += a.d[--i] * f;
             f *= IRADIX;
             bits += SHFT;
         }
 
         // sticky bit
         sticky = 0;
-        while(i > 0) sticky |= AD[--i];
+        while(i > 0) sticky |= a.d[--i];
         if(sticky) l += (RADIX / 2) * f;
 
         h += l;
 
-        for(i = 0; i < EXA; ++i) h *= (REAL)RADIX;
-        for(i = 0; i > EXA; --i) h *= IRADIX;
-        if(SGNA == -1) h = -h;
+        for(i = 0; i < a.expt; ++i) h *= (REAL)RADIX;
+        for(i = 0; i > a.expt; --i) h *= IRADIX;
+        if(a.sign == -1) h = -h;
         return h;
     } else {
         return 0.0;
@@ -256,87 +243,49 @@ static N inv(const N &a) {
 }
 
 
-/* 2 pi */
-static const N n2pi (
-    1,  1,
-     {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6}
-);
+// 2 pi
+static const N n2pi(1,  1, {18450, 59017, 1760, 5212, 9779, 4518, 2886, 54545, 18558, 6});
 
-/* 1 / 31! */
-static const N i31fac (
-    1, -7, 
-    {28087, 45433, 51357, 24545, 14291, 3954, 57879, 8109, 38716, 41382}
-    );
+// 1 / 31!
+static const N i31fac(1, -7, {28087, 45433, 51357, 24545, 14291, 3954, 57879, 8109, 38716, 41382});
+
+// 1 / 32!
+static const N i32fac(1, -7, {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293});
 
 
-/* 1 / 32! */
-static const N i32fac (
-    1, -7,
-    {52078, 60811, 3652, 39679, 37310, 47227, 28432, 57597, 13497, 1293}
-    );
-
-static N msin(const N &a)
-{
-    N b;
-    N a2, g, k;
-    int i;
-
-    g = i31fac;
-    b = g;
-    a2 = a * a;
-
-    /* Taylor */
-    for (i = 31; i > 1; i -= 2) {
-        k = N(i * (i - 1));
-        g = k * g;
-        k = a2 * b;
-        b = g - k;
+static N sin(const N &a) {
+    N g = i31fac, b = g;
+    const N a2 = a * a;
+    for(int i = 31; i > 1; i -= 2) { // Taylor
+        g *= N(i * (i - 1));
+        b = g - a2 * b;
     }
-    b = a * b;
-    return b;
+    return a * b;
 }
 
-static N mcos(const N &a)
-{
-    N b;
-    N a2, g, k;
-    int i;
-
-    g = i32fac;
-    b = g;
-    a2 = a * a;
-
-    /* Taylor */
-    for (i = 32; i > 0; i -= 2) {
-        k = N(i * (i - 1));
-        g = k * g;
-        k = a2 * b;
-        b = g - k;
+static N cos(const N &a) {
+    N g = i32fac, b = g;
+    const N a2 = a * a;
+    for(int i = 32; i > 0; i -= 2) { // Taylor
+        g *= N(i * (i - 1));
+        b = g - a2 * b;
     }
     return b;
 }
 
-static N by2pi(REAL m, REAL n)
-{
-    N a, b;
-
-    b = N(n);
-    a = inv(b);
-    b = N(m);
-    a = a * b;
-    a = n2pi * a;
-    return a;
+/// 2 pi m / n
+static N by2pi(REAL m, REAL n) {
+    return N(m) * inv(N(n)) * n2pi;
 }
 
 static N sin2pi(REAL m, REAL n);
-static N cos2pi(REAL m, REAL n)
-{
+static N cos2pi(REAL m, REAL n) {
     N a,b;
     if (m < 0) a = cos2pi(-m, n);
     else if (m > n * 0.5) a = cos2pi(n - m, n);
     else if (m > n * 0.25) a = -sin2pi(m - n * 0.25, n);
     else if (m > n * 0.125) a = sin2pi(n * 0.25 - m, n);
-    else { b = by2pi(m, n); a = mcos(b); }
+    else { b = by2pi(m, n); a = cos(b); }
     return a;
 }
 
@@ -347,7 +296,7 @@ static N sin2pi(REAL m, REAL n)
     else if (m > n * 0.5) a = -sin2pi(n - m, n);
     else if (m > n * 0.25) a = cos2pi(m - n * 0.25, n);
     else if (m > n * 0.125) a = cos2pi(n * 0.25 - m, n);
-    else {b = by2pi(m, n); a = msin(b);}
+    else {b = by2pi(m, n); a = sin(b);}
     return a;
 }
 
