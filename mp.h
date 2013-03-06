@@ -320,11 +320,11 @@ static CN exp(int m, int n) {
     CN v(N(1));
     if(m > 0) {
         for(int k = 0; m; ++k, m >>= 1)
-            if(m & 1) v = w[k] * v;
+            if(m & 1) v *= w[k];
     } else {
         m = -m;
         for(int k = 0; m; ++k, m >>= 1)
-            if(m & 1) v = conj(w[k]) * v;
+            if(m & 1) v *= std::conj(w[k]);
     }
     return v;
 }
@@ -397,26 +397,18 @@ static void bluestein(int n, CN *a) {
         cached_bluestein_w = w;
         cached_bluestein_y = y;
     }
-    for(int i = 0; i < nb; ++i) b[i] = CN(0);
-    for(int i = 0; i < n; ++i) b[i] = conj(w[i]) * a[i];
-
+    for(int i = 0; i < nb; ++i) b[i] = CN();
+    for(int i = 0; i < n; ++i) b[i] = std::conj(w[i]) * a[i];
     // scaled convolution b * y
     fft0(nb, b, -1);
-
-    for(int i = 0; i < nb; ++i)
-        b[i] = b[i] * y[i];
+    for(int i = 0; i < nb; ++i) b[i] *= y[i];
     fft0(nb, b, 1);
-
-    for(int i = 0; i < n; ++i) {
-        a[i] = conj(w[i]) * b[i];
-        a[i] *= nbinv;
-    }
+    for(int i = 0; i < n; ++i) a[i] = conj(w[i]) * b[i] * nbinv;
     delete [] b;
 }
 
 static void swapri(int n, CN *a) {
-    for(int i = 0; i < n; ++i)
-        a[i] = CN(imag(a[i]), real(a[i]));
+    for(int i = 0; i < n; ++i) a[i] = CN(imag(a[i]), real(a[i]));
 }
 
 static void fft1(int n, CN *a, int sign) {
@@ -430,7 +422,7 @@ static void fft1(int n, CN *a, int sign) {
 }
 
 static void fromrealv(int n, const bench_complex *a, CN *b) {
-    for (int i = 0; i < n; ++i)
+    for(int i = 0; i < n; ++i)
         b[i] = CN(N(c_re(a[i])), N(c_im(a[i])));
 }
 
@@ -438,19 +430,14 @@ static void compare(int n, const N *a, const N *b, double err[3]) {
     double e1 = 0, e2 = 0, einf = 0;
     double n1 = 0, n2 = 0, ninf = 0;
     for(int i = 0; i < 2 * n; ++i) {
-        N dd = a[i] - b[i];
-        {
-            double d = std::abs(toreal(a[i]));
-            n1 += d;
-            n2 += d * d;
-            if(d > ninf) ninf = d;
-        }
-        {
-            double d = std::abs(toreal(dd));
-            e1 += d;
-            e2 += d * d;
-            if(d > einf) einf = d;
-        }
+        double nd = std::abs(toreal(a[i]));
+        n1 += nd;
+        n2 += nd * nd;
+        if(nd > ninf) ninf = nd;
+        double ed = std::abs(toreal(a[i] - b[i]));
+        e1 += ed;
+        e2 += ed * ed;
+        if(ed > einf) einf = ed;
     }
     err[0] = e1 / n1;
     err[1] = sqrt(e2 / n2);
@@ -458,13 +445,8 @@ static void compare(int n, const N *a, const N *b, double err[3]) {
 }
 
 void fftaccuracy(int n, const bench_complex *a, const bench_complex *ffta, int sign, double err[6]) {
-    CN *b = (CN *)bench_malloc(n * sizeof(CN));
-    CN *fftb = (CN *)bench_malloc(n * sizeof(CN));
-    N mn, ninv;
-    int i;
-
-    mn = N(n);
-    ninv = inv(mn);
+    CN *b = new CN[n];
+    CN *fftb = new CN[n];
 
     // forward error
     fromrealv(n, a, b); fromrealv(n, ffta, fftb);
@@ -473,16 +455,16 @@ void fftaccuracy(int n, const bench_complex *a, const bench_complex *ffta, int s
 
     // backward error
     fromrealv(n, a, b); fromrealv(n, ffta, fftb);
-    for (i = 0; i < n; ++i) fftb[i] *= ninv;
+    const N ninv = inv(N(n));
+    for(int i = 0; i < n; ++i) fftb[i] *= ninv;
     fft1(n, fftb, -sign);
     compare(n, (N*)b, (N*)fftb, err + 3);
 
-    bench_free(fftb);
-    bench_free(b);
+    delete [] fftb;
+    delete [] b;
 }
 
-void fftaccuracy_done(void)
-{
-    if (cached_bluestein_w) bench_free(cached_bluestein_w);
-    if (cached_bluestein_y) bench_free(cached_bluestein_y);
+void fftaccuracy_done() {
+    if(cached_bluestein_w) delete [] cached_bluestein_w;
+    if(cached_bluestein_y) delete [] cached_bluestein_y;
 }
