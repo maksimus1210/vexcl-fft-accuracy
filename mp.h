@@ -6,9 +6,6 @@
 #include <vector>
 
 #include <boost/math/constants/constants.hpp>
-#include <boost/multiprecision/cpp_dec_float.hpp>
-#include <boost/multiprecision/gmp.hpp>
-#include <boost/multiprecision/mpfr.hpp>
 
 int power_of_two(unsigned int n) {
     return (((n) > 0) && (((n) & ((n) - 1)) == 0));
@@ -20,9 +17,7 @@ static int pow2_atleast(int x) {
     return h;
 }
 
-
-
-template<class N = boost::multiprecision::static_mpfr_float_50>
+template<class N>
 struct simple_fft {
     typedef std::complex<N> CN;
 
@@ -36,7 +31,7 @@ struct simple_fft {
         if(n != cached_n) {
             const N pi = boost::math::constants::pi<N>();
             for(int j = 1, k = 0; j < n; j += j, ++k) {
-                const N alpha = pi * N(2) * N(j) / N(n);
+                const N alpha = pi * 2 * j / n;
                 w[k] = CN(cos(alpha), sin(alpha));
             }
             cached_n = n;
@@ -103,7 +98,7 @@ struct simple_fft {
             fft0(y, -1);
         }
         for(int i = 0; i < nb; ++i) b[i] = CN(0.0, 0.0);
-        for(int i = 0; i < n; ++i) b[i] = std::conj(w[i]) * a[i];
+        for(int i = 0; i < n; ++i) b[i] = conj(w[i]) * a[i];
         // scaled convolution b * y
         fft0(b, -1);
         for(int i = 0; i < nb; ++i) b[i] *= y[i];
@@ -125,8 +120,19 @@ struct simple_fft {
         }
     }
 
-    N compare(std::vector<CN> &a, std::vector<CN> &b, double norm) {
+    template<class T>
+    std::vector<CN> operator()(const std::vector<T> &a, int sign = -1) {
+        const int n = a.size();
+        std::vector<CN> b(a.begin(), a.end());
+        fft1(b, sign);
+        if(sign == 1) for(auto &x : b) x /= n;
+        return b;
+    }
+
+    template<class T1, class T2>
+    N compare(const std::vector<T1> &_a, const std::vector<T2> &_b, double norm = 2) const {
         const bool inf = norm == std::numeric_limits<double>::infinity();
+        std::vector<CN> a(_a.begin(), _a.end()), b(_b.begin(), _b.end());
         N e(0), m(0);
         for(int i = 0; i < a.size(); ++i) {
 #define NORM(b, a) {N __v = abs(a); b = inf ? std::max(b, __v) : (b + pow(__v, norm));}
@@ -140,23 +146,4 @@ struct simple_fft {
         if(inf) return e / m;
         else return pow(e / m, 1 / norm);
     }
-
-    template<class T>
-    double accuracy(const std::vector<std::complex<T>> &a, const std::vector<std::complex<T>> &ffta, int sign, bool forward = true, double norm = 2) {
-        const int n = a.size();
-        assert(n == ffta.size());
-        std::vector<CN> b(n), fftb(n);
-        for(int i = 0 ; i < n ; i++) {
-            b[i] = CN(a[i]);
-            fftb[i] = CN(ffta[i]);
-        }
-        if(forward) { // forward error
-            fft1(b, sign);
-        } else { // backward error
-            for(int i = 0; i < n; ++i) fftb[i] /= n;
-            fft1(fftb, -sign);
-        }
-        return static_cast<double>(compare(b, fftb, norm));
-    }
-
 };
