@@ -26,26 +26,8 @@ struct simple_fft {
 
     /// exp(i 2 pi m / n)
     static CN exp(int m, int n) {
-        static int cached_n = -1;
-        static CN w[64];
-        if(n != cached_n) {
-            const N pi = boost::math::constants::pi<N>();
-            for(int j = 1, k = 0; j < n; j += j, ++k) {
-                const N alpha = pi * 2 * j / n;
-                w[k] = CN(cos(alpha), sin(alpha));
-            }
-            cached_n = n;
-        }
-        CN v(1.0, 0.0);
-        if(m > 0) {
-            for(int k = 0; m; ++k, m >>= 1)
-                if(m & 1) v *= w[k];
-        } else {
-            m = -m;
-            for(int k = 0; m; ++k, m >>= 1)
-                if(m & 1) v *= std::conj(w[k]);
-        }
-        return v;
+        static const N pi = boost::math::constants::pi<N>();
+        return std::polar<N>(1, pi * 2 * m / n);
     }
 
     void bitrev(std::vector<CN> &a) {
